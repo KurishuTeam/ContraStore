@@ -1,0 +1,7 @@
+#!/bin/sh
+
+launchctl load /Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
+
+sudo launchctl reboot userspace
+
+exit 0
