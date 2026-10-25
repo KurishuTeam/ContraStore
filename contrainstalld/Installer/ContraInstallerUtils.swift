@@ -124,7 +124,7 @@ extension ContraInstaller {
     
     func refreshIconCache(for installedAppURL: URL) {
         installedAppURL.path.withCString { path in
-            run_uicache(path)
+            uicache(path)
         }
     } 
      
