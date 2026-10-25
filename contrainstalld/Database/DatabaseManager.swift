@@ -26,11 +26,10 @@ public class DatabaseManager: NSObject {
 
     private func ROOT_PATH_NS(_ path: String) -> String {
         // Resolve path against rootless jailbreak prefix using libroot
-        if let prefixPtr = libroot_dyn_get_jbroot_prefix() {
-            let prefix = String(cString: prefixPtr)
-            if !prefix.isEmpty {
-                return (prefix as NSString).appendingPathComponent(path)
-            }
+        let prefixPtr = libroot_dyn_get_jbroot_prefix()
+        let prefix = String(cString: prefixPtr)
+        if !prefix.isEmpty {
+            return (prefix as NSString).appendingPathComponent(path)
         }
         return path
     }
@@ -97,11 +96,11 @@ public class DatabaseManager: NSObject {
                 sqlite3_finalize(stmt)
             }
 
-            bundleId.withCString { sqlite3_bind_text(stmt, 1, $0, -1, SQLITE_TRANSIENT) }
-            realBundle.withCString { sqlite3_bind_text(stmt, 2, $0, -1, SQLITE_TRANSIENT) }
-            fakeBundle.withCString { sqlite3_bind_text(stmt, 3, $0, -1, SQLITE_TRANSIENT) }
-            realData.withCString { sqlite3_bind_text(stmt, 4, $0, -1, SQLITE_TRANSIENT) }
-            fakeData.withCString { sqlite3_bind_text(stmt, 5, $0, -1, SQLITE_TRANSIENT) }
+            _ = bundleId.withCString { sqlite3_bind_text(stmt, 1, $0, -1, SQLITE_TRANSIENT) }
+            _ = realBundle.withCString { sqlite3_bind_text(stmt, 2, $0, -1, SQLITE_TRANSIENT) }
+            _ = fakeBundle.withCString { sqlite3_bind_text(stmt, 3, $0, -1, SQLITE_TRANSIENT) }
+            _ = realData.withCString { sqlite3_bind_text(stmt, 4, $0, -1, SQLITE_TRANSIENT) }
+            _ = fakeData.withCString { sqlite3_bind_text(stmt, 5, $0, -1, SQLITE_TRANSIENT) }
 
             if sqlite3_step(stmt) == SQLITE_DONE {
                 success = true
@@ -138,7 +137,7 @@ public class DatabaseManager: NSObject {
                 sqlite3_finalize(stmt)
             }
 
-            bundleId.withCString { sqlite3_bind_text(stmt, 1, $0, -1, SQLITE_TRANSIENT) }
+            _ = bundleId.withCString { sqlite3_bind_text(stmt, 1, $0, -1, SQLITE_TRANSIENT) }
 
             if sqlite3_step(stmt) == SQLITE_ROW {
                 let getString = { (index: Int32) -> String in

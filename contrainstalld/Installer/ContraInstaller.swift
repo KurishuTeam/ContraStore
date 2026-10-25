@@ -6,17 +6,16 @@ public class ContraInstaller: NSObject, ContraInstallerProtocol {
 
     private func ROOT_PATH_NS(_ path: String) -> String {
         // Resolve jailbreak rootless prefix dynamically using libroot
-        if let prefixPtr = libroot_dyn_get_jbroot_prefix() {
-            let prefix = String(cString: prefixPtr)
-            if !prefix.isEmpty {
-                return (prefix as NSString).appendingPathComponent(path)
-            }
+        let prefixPtr = libroot_dyn_get_jbroot_prefix()
+        let prefix = String(cString: prefixPtr)
+        if !prefix.isEmpty {
+            return (prefix as NSString).appendingPathComponent(path)
         }
         return path
     }
 
     @objc(installIpaAtPath:bundleId:withReply:)
-    public func installIpaAtPath(_ ipaPath: String, bundleId: String, withReply reply: @escaping (NSError?) -> Void) {
+    public func installIpa(atPath ipaPath: String, bundleId: String, withReply reply: @escaping @Sendable (Error?) -> Void) {
         NSLog("[ContraInstaller] Starting install for bundleId: %@ at path: %@", bundleId, ipaPath)
 
         // Generate target real and fake paths for app isolation and redirection
