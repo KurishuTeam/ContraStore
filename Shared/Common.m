@@ -21,7 +21,7 @@ void send_xpc_ping(void) {
     }
 
     NSLog(@"[ContraStore:SandyXPC] Sending ping to daemon...");
-    BOOL sent = [center sendMessageName:@"ping" userInfo:nil];
+    BOOL sent = [center sendMessageName:@"ping" userInfo:@{}];
     NSLog(@"[ContraStore:SandyXPC] Ping message sent result: %d", sent);
 }
 
