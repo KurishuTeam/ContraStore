@@ -48,38 +48,45 @@ void send_xpc_install(const char *ipaPath) {
     NSLog(@"[ContraStore:SandyXPC] Install message sent result: %d", sent);
 }
 
-NSString *send_xpc_get_paths(const char *pathOrBundleId) {
-    if (!pathOrBundleId) {
-        NSLog(@"[ContraStore:SandyXPC] send_xpc_get_paths received NULL pathOrBundleId");
-        return nil;
+const char *send_xpc_get_paths_sync(const char *fakePath) {
+    if (!fakePath) {
+        return NULL;
     }
 
     SandyXpcMessagingCenter *center = get_sandy_center();
     if (!center) {
         NSLog(@"[ContraStore:SandyXPC] Cannot send get_paths: center is nil");
-        return [NSString stringWithUTF8String:pathOrBundleId];
+        return strdup(fakePath);
     }
 
-    NSString *inputStr = [NSString stringWithUTF8String:pathOrBundleId];
-    NSDictionary *userInfo = @{
-        @"path": inputStr ?: @"",
-        @"bundle_id": [[NSBundle mainBundle] bundleIdentifier] ?: @""
+    NSString *pathStr = [NSString stringWithUTF8String:fakePath];
+    NSDictionary *dict = @{
+        @"fake_path": pathStr ?: @""
     };
 
-    NSLog(@"[ContraStore:SandyXPC] Sending get_paths for input: %@", inputStr);
     NSError *error = nil;
-    NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"get_paths" userInfo:userInfo error:&error];
+    NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"get_paths" userInfo:dict error:&error];
     if (error || !reply) {
         NSLog(@"[ContraStore:SandyXPC] get_paths error: %@", error);
-        return inputStr;
+        return strdup(fakePath);
     }
 
-    NSString *realPath = reply[@"real_path"] ?: reply[@"systemDataPath"] ?: reply[@"path"];
+    NSString *realPath = reply[@"real_path"];
     if (realPath.length > 0) {
-        return realPath;
+        return strdup([realPath UTF8String]);
     }
 
-    return inputStr;
+    return strdup(fakePath);
+}
+
+NSString *send_xpc_get_paths(const char *pathOrBundleId) {
+    const char *resolved = send_xpc_get_paths_sync(pathOrBundleId);
+    if (!resolved) {
+        return nil;
+    }
+    NSString *result = [NSString stringWithUTF8String:resolved];
+    free((void *)resolved);
+    return result;
 }
 
 const char *contra_root_path(const char *path) {

@@ -18,7 +18,12 @@ static NSString *get_real_path(NSString *fakePath) {
         return fakePath;
     }
 
-    NSString *realPath = send_xpc_get_paths([fakePath UTF8String]);
+    const char *resolvedC = send_xpc_get_paths_sync([fakePath UTF8String]);
+    if (!resolvedC) {
+        return fakePath;
+    }
+    NSString *realPath = [NSString stringWithUTF8String:resolvedC];
+    free((void *)resolvedC);
     return realPath ?: fakePath;
 }
 
