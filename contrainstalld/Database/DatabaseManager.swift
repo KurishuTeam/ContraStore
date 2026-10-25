@@ -24,7 +24,7 @@ public class DatabaseManager: NSObject {
         }
     }
 
-    private func resolveRootPath(_ path: String) -> String {
+    private func ROOT_PATH_NS(_ path: String) -> String {
         // Resolve path against rootless jailbreak prefix using libroot
         if let prefixPtr = libroot_dyn_get_jbroot_prefix() {
             let prefix = String(cString: prefixPtr)
@@ -37,7 +37,7 @@ public class DatabaseManager: NSObject {
 
     private func initializeDatabase() {
         dbQueue.sync {
-            let dbPath = resolveRootPath("/var/mobile/Library/ContraStore/contra.db")
+            let dbPath = ROOT_PATH_NS("/var/mobile/Library/ContraStore/contra.db")
             let dbDir = (dbPath as NSString).deletingLastPathComponent
             let fileManager = FileManager.default
 

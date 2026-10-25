@@ -4,7 +4,7 @@ import Foundation
 @objcMembers
 public class ContraInstaller: NSObject, ContraInstallerProtocol {
 
-    private func resolveRootPath(_ path: String) -> String {
+    private func ROOT_PATH_NS(_ path: String) -> String {
         // Resolve jailbreak rootless prefix dynamically using libroot
         if let prefixPtr = libroot_dyn_get_jbroot_prefix() {
             let prefix = String(cString: prefixPtr)
@@ -20,9 +20,9 @@ public class ContraInstaller: NSObject, ContraInstallerProtocol {
         NSLog("[ContraInstaller] Starting install for bundleId: %@ at path: %@", bundleId, ipaPath)
 
         // Generate target real and fake paths for app isolation and redirection
-        let realBundle = resolveRootPath("/Applications/\(bundleId).app")
+        let realBundle = ROOT_PATH_NS("/Applications/\(bundleId).app")
         let fakeBundle = "/var/mobile/Containers/Bundle/Application/\(UUID().uuidString)/\(bundleId).app"
-        let realData = resolveRootPath("/var/mobile/Library/ContraStore/Data/\(bundleId)/")
+        let realData = ROOT_PATH_NS("/var/mobile/Library/ContraStore/Data/\(bundleId)/")
         let fakeData = "/var/mobile/Containers/Data/Application/\(UUID().uuidString)/"
 
         let saved = DatabaseManager.shared.saveApp(

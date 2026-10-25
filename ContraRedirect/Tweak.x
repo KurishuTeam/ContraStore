@@ -17,7 +17,7 @@ static NSDictionary *get_app_path_mapping(void) {
         if (!bundleId || [bundleId hasPrefix:@"com.apple."]) {
             return;
         }
-        g_pathMapping = send_xpc_get_paths_sync([bundleId UTF8String]);
+        g_pathMapping = send_xpc_get_paths_sync(bundleId);
         if (g_pathMapping) {
             NSLog(@"[ContraRedirect] Loaded path mapping for %@: %@", bundleId, g_pathMapping);
         }
@@ -35,8 +35,8 @@ static NSString *get_real_path(NSString *fakePath) {
         return fakePath;
     }
 
-    NSString *fakeData = mapping[@"fakeDataPath"];
-    NSString *systemData = mapping[@"systemDataPath"];
+    NSString *fakeData = mapping[@"fake_data_path"] ?: mapping[@"fake_data"] ?: mapping[@"fakeDataPath"];
+    NSString *systemData = mapping[@"real_data_path"] ?: mapping[@"real_data"] ?: mapping[@"systemDataPath"];
     if (fakeData.length > 0 && systemData.length > 0) {
         NSString *normFakePath = [fakePath hasPrefix:@"/private"] ? [fakePath substringFromIndex:8] : fakePath;
         NSString *normFakeData = [fakeData hasPrefix:@"/private"] ? [fakeData substringFromIndex:8] : fakeData;
@@ -47,8 +47,8 @@ static NSString *get_real_path(NSString *fakePath) {
         }
     }
 
-    NSString *fakeBundle = mapping[@"fakeBundlePath"];
-    NSString *systemBundle = mapping[@"systemBundlePath"];
+    NSString *fakeBundle = mapping[@"fake_bundle_path"] ?: mapping[@"fake_bundle"] ?: mapping[@"fakeBundlePath"];
+    NSString *systemBundle = mapping[@"real_bundle_path"] ?: mapping[@"real_bundle"] ?: mapping[@"systemBundlePath"];
     if (fakeBundle.length > 0 && systemBundle.length > 0) {
         NSString *normFakePath = [fakePath hasPrefix:@"/private"] ? [fakePath substringFromIndex:8] : fakePath;
         NSString *normFakeBundle = [fakeBundle hasPrefix:@"/private"] ? [fakeBundle substringFromIndex:8] : fakeBundle;
@@ -133,8 +133,6 @@ static int new_lstat(const char *path, struct stat *buf) {
 %ctor {
     @autoreleasepool {
         NSLog(@"[ContraRedirect] Initializing ContraRedirect hook engine...");
-
-        get_sandy_center();
 
         MSHookFunction((void *)fopen, (void *)new_fopen, (void **)&orig_fopen);
         MSHookFunction((void *)stat, (void *)new_stat, (void **)&orig_stat);
