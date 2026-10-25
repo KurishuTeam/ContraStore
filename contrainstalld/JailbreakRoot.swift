@@ -1,9 +1,7 @@
 import Foundation
 
 public func getJbRootPrefix() -> String {
-    guard let prefixPtr = libroot_dyn_get_jbroot_prefix() else {
-        return ""
-    }
+    let prefixPtr = libroot_dyn_get_jbroot_prefix()
     return String(cString: prefixPtr)
 }
 
