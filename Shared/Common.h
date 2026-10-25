@@ -4,7 +4,7 @@
 #import <Foundation/Foundation.h>
 #import <libroot.h>
 #import <rootless.h>
-#import <xpc/xpc.h>
+#import <SandyXpc/SandyXpc.h>
 
 #define CONTRA_XPC_SERVICE_NAME "com.kurishu.contrainstalld.service"
 
@@ -12,16 +12,16 @@
 extern "C" {
 #endif
 
-/// Returns a shared, active C-level XPC connection to contrainstalld daemon
-xpc_connection_t get_contrainstalld_xpc_connection(void);
+/// Returns the SandyXpcMessagingCenter instance for contrainstalld
+SandyXpcMessagingCenter *get_sandy_center(void);
 
-/// Sends an XPC ping message to the daemon to verify connectivity
+/// Sends an XPC ping message to the daemon using SandyXpc
 void send_xpc_ping(void);
 
-/// Sends an XPC install request to the daemon with the specified IPA path
+/// Sends an XPC install request to the daemon using SandyXpc with the specified IPA path
 void send_xpc_install(const char *ipaPath);
 
-/// Requests redirected and real paths for the specified bundle ID
+/// Requests paths for a bundle ID from the daemon using SandyXpc
 void send_xpc_get_paths(const char *bundleId);
 
 /// Helper to resolve rootless path using ROOT_PATH macro

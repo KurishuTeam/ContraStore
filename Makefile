@@ -4,6 +4,6 @@ THEOS_PACKAGE_SCHEME = rootless
 
 include $(THEOS)/makefiles/common.mk
 
-SUBPROJECTS += ContraStore contrainstalld ContraRedirect
+SUBPROJECTS += SandyXpc ContraStore contrainstalld ContraRedirect
 
 include $(THEOS_MAKE_PATH)/aggregate.mk

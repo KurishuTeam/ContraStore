@@ -22,6 +22,7 @@ jobs:
 
       - name: Build Package
         run: |
+          cd SandyXpc && make stage THEOS_PACKAGE_SCHEME=rootless FINALPACKAGE=1 && cd ..
           make package FINALPACKAGE=1
 
       - name: Upload Artifact
