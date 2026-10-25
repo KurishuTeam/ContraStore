@@ -33,17 +33,18 @@
 }
 
 - (NSDictionary *)handleGetPaths:(NSString *)messageName userInfo:(NSDictionary *)userInfo {
-    NSString *fakePath = userInfo[@"fake_path"] ?: userInfo[@"path"];
-    NSLog(@"[contrainstalld] Received get_paths for fake_path: %@", fakePath);
+    NSString *bundleId = userInfo[@"bundle_id"];
+    NSLog(@"[contrainstalld] Received get_paths for bundle ID: %@", bundleId);
 
-    if (fakePath.length > 0) {
-        return @{
-            @"real_path": fakePath,
-            @"status": @"ok"
-        };
+    if (bundleId.length > 0) {
+        NSDictionary *appInfo = [[DatabaseManager shared] getAppInfoForBundleID:bundleId];
+        if (appInfo) {
+            NSLog(@"[contrainstalld] Found app info for %@: %@", bundleId, appInfo);
+            return appInfo;
+        }
     }
 
-    return @{@"status": @"ok"};
+    return @{@"status": @"not_found"};
 }
 
 @end

@@ -48,45 +48,31 @@ void send_xpc_install(const char *ipaPath) {
     NSLog(@"[ContraStore:SandyXPC] Install message sent result: %d", sent);
 }
 
-const char *send_xpc_get_paths_sync(const char *fakePath) {
-    if (!fakePath) {
-        return NULL;
+NSDictionary *send_xpc_get_paths_sync(const char *bundleId) {
+    if (!bundleId) {
+        return nil;
     }
 
     SandyXpcMessagingCenter *center = get_sandy_center();
     if (!center) {
         NSLog(@"[ContraStore:SandyXPC] Cannot send get_paths: center is nil");
-        return strdup(fakePath);
+        return nil;
     }
 
-    NSString *pathStr = [NSString stringWithUTF8String:fakePath];
+    NSString *bundleStr = [NSString stringWithUTF8String:bundleId];
     NSDictionary *dict = @{
-        @"fake_path": pathStr ?: @""
+        @"bundle_id": bundleStr ?: @""
     };
 
+    NSLog(@"[ContraStore:SandyXPC] Requesting paths for bundle: %@", bundleStr);
     NSError *error = nil;
     NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"get_paths" userInfo:dict error:&error];
     if (error || !reply) {
         NSLog(@"[ContraStore:SandyXPC] get_paths error: %@", error);
-        return strdup(fakePath);
-    }
-
-    NSString *realPath = reply[@"real_path"];
-    if (realPath.length > 0) {
-        return strdup([realPath UTF8String]);
-    }
-
-    return strdup(fakePath);
-}
-
-NSString *send_xpc_get_paths(const char *pathOrBundleId) {
-    const char *resolved = send_xpc_get_paths_sync(pathOrBundleId);
-    if (!resolved) {
         return nil;
     }
-    NSString *result = [NSString stringWithUTF8String:resolved];
-    free((void *)resolved);
-    return result;
+
+    return reply;
 }
 
 const char *contra_root_path(const char *path) {

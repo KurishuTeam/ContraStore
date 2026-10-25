@@ -21,12 +21,8 @@ void send_xpc_ping(void);
 /// Sends an XPC install request to the daemon using SandyXpc with the specified IPA path
 void send_xpc_install(const char *ipaPath);
 
-/// Requests synchronous path resolution for fakePath from daemon via SandyXpc.
-/// Returns a heap-allocated (strdup) C string which caller must free, or strdup(fakePath) if not mapped.
-const char *send_xpc_get_paths_sync(const char *fakePath);
-
-/// Requests paths for a bundle ID or fake path from the daemon using SandyXpc
-NSString *send_xpc_get_paths(const char *pathOrBundleId);
+/// Requests synchronous path mapping dictionary for bundleId from daemon via SandyXpc
+NSDictionary *send_xpc_get_paths_sync(const char *bundleId);
 
 /// Helper to resolve rootless path using ROOT_PATH macro
 const char *contra_root_path(const char *path);

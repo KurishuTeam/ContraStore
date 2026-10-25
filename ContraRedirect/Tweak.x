@@ -6,25 +6,60 @@
 
 #import "Common.h"
 
-#pragma mark - Phase 1: Helper Function
+#pragma mark - Phase 1: Helper Function & Prefix Replacement
+
+static NSDictionary *g_pathMapping = nil;
+static dispatch_once_t g_pathMappingOnce;
+
+static NSDictionary *get_app_path_mapping(void) {
+    dispatch_once(&g_pathMappingOnce, ^{
+        NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
+        if (!bundleId || [bundleId hasPrefix:@"com.apple."]) {
+            return;
+        }
+        g_pathMapping = send_xpc_get_paths_sync([bundleId UTF8String]);
+        if (g_pathMapping) {
+            NSLog(@"[ContraRedirect] Loaded path mapping for %@: %@", bundleId, g_pathMapping);
+        }
+    });
+    return g_pathMapping;
+}
 
 static NSString *get_real_path(NSString *fakePath) {
     if (!fakePath || ![fakePath isKindOfClass:[NSString class]]) {
         return fakePath;
     }
 
-    // Optimization: if not inside the fake sandbox container, return original immediately
-    if (![fakePath hasPrefix:@"/var/mobile/Containers/Data/Application/"]) {
+    NSDictionary *mapping = get_app_path_mapping();
+    if (!mapping) {
         return fakePath;
     }
 
-    const char *resolvedC = send_xpc_get_paths_sync([fakePath UTF8String]);
-    if (!resolvedC) {
-        return fakePath;
+    NSString *fakeData = mapping[@"fakeDataPath"];
+    NSString *systemData = mapping[@"systemDataPath"];
+    if (fakeData.length > 0 && systemData.length > 0) {
+        NSString *normFakePath = [fakePath hasPrefix:@"/private"] ? [fakePath substringFromIndex:8] : fakePath;
+        NSString *normFakeData = [fakeData hasPrefix:@"/private"] ? [fakeData substringFromIndex:8] : fakeData;
+
+        if ([normFakePath hasPrefix:normFakeData]) {
+            NSString *subpath = [normFakePath substringFromIndex:normFakeData.length];
+            return [systemData stringByAppendingPathComponent:subpath];
+        }
     }
-    NSString *realPath = [NSString stringWithUTF8String:resolvedC];
-    free((void *)resolvedC);
-    return realPath ?: fakePath;
+
+    NSString *fakeBundle = mapping[@"fakeBundlePath"];
+    NSString *systemBundle = mapping[@"systemBundlePath"];
+    if (fakeBundle.length > 0 && systemBundle.length > 0) {
+        NSString *normFakePath = [fakePath hasPrefix:@"/private"] ? [fakePath substringFromIndex:8] : fakePath;
+        NSString *normFakeBundle = [fakeBundle hasPrefix:@"/private"] ? [fakeBundle substringFromIndex:8] : fakeBundle;
+
+        if ([normFakePath hasPrefix:normFakeBundle]) {
+            NSString *subpath = [normFakePath substringFromIndex:normFakeBundle.length];
+            return [systemBundle stringByAppendingPathComponent:subpath];
+        }
+    }
+
+    return fakePath;
 }
 
 #pragma mark - Phase 2: Hook Objective-C (NSFileManager)
