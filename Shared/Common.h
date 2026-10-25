@@ -1,34 +1,21 @@
-#ifndef CONTRA_SHARED_COMMON_H
-#define CONTRA_SHARED_COMMON_H
+#ifndef COMMON_H
+#define COMMON_H
 
 #import <Foundation/Foundation.h>
-#import <libroot.h>
-#import <rootless.h>
 #import <SandyXpc/SandyXpc.h>
-
-#define CONTRA_XPC_SERVICE_NAME "com.kurishu.contrainstalld.service"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/// Returns the SandyXpcMessagingCenter instance for contrainstalld
-SandyXpcMessagingCenter *get_sandy_center(void);
+// Synchronously pings the daemon to verify communication and health
+NSDictionary *send_xpc_ping_sync(void);
 
-/// Sends an XPC ping message to the daemon using SandyXpc
-void send_xpc_ping(void);
-
-/// Sends an XPC install request to the daemon using SandyXpc with the specified IPA path
-void send_xpc_install(const char *ipaPath);
-
-/// Requests synchronous path mapping dictionary for bundleId from daemon via SandyXpc
-NSDictionary *send_xpc_get_paths_sync(const char *bundleId);
-
-/// Helper to resolve rootless path using ROOT_PATH macro
-const char *contra_root_path(const char *path);
+// Synchronously retrieves path mappings for the given bundle identifier
+NSDictionary *send_xpc_get_paths_sync(NSString *bundleId);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CONTRA_SHARED_COMMON_H */
+#endif /* COMMON_H */

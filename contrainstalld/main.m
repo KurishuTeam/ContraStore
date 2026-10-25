@@ -1,67 +1,68 @@
 #import <Foundation/Foundation.h>
 #import <SandyXpc/SandyXpc.h>
-#import "ContraInstallerProtocol.h"
+#import <rootless.h>
+#import "Installer/ContraInstallerProtocol.h"
 #import "contrainstalld-Swift.h"
 
-#define SERVICE_NAME @"com.kurishu.contrainstalld.service"
+#define CONTRA_SERVICE_NAME @"com.kurishu.contrainstalld.service"
 
 @interface DaemonMessageHandler : NSObject
-- (void)handlePing:(NSString *)messageName userInfo:(NSDictionary *)userInfo;
-- (void)handleInstall:(NSString *)messageName userInfo:(NSDictionary *)userInfo;
+- (NSDictionary *)handlePing:(NSString *)messageName userInfo:(NSDictionary *)userInfo;
 - (NSDictionary *)handleGetPaths:(NSString *)messageName userInfo:(NSDictionary *)userInfo;
+- (void)handleInstall:(NSString *)messageName userInfo:(NSDictionary *)userInfo;
 @end
 
 @implementation DaemonMessageHandler
 
-- (void)handlePing:(NSString *)messageName userInfo:(NSDictionary *)userInfo {
-    NSLog(@"[contrainstalld] Received ping from Client. (messageName=%@)", messageName);
+- (NSDictionary *)handlePing:(NSString *)messageName userInfo:(NSDictionary *)userInfo {
+    NSLog(@"[contrainstalld] Received ping request");
+    return @{@"status": @"ok", @"message": @"pong"};
+}
+
+- (NSDictionary *)handleGetPaths:(NSString *)messageName userInfo:(NSDictionary *)userInfo {
+    NSString *bundleId = userInfo[@"bundle_id"] ?: @"";
+    NSLog(@"[contrainstalld] Received get_paths request for bundle_id: %@", bundleId);
+    return @{
+        @"bundle_id": bundleId,
+        @"real_data": @"/var/mobile/",
+        @"fake_data": @"/var/mobile/"
+    };
 }
 
 - (void)handleInstall:(NSString *)messageName userInfo:(NSDictionary *)userInfo {
     NSString *path = userInfo[@"path"];
-    NSLog(@"[contrainstalld] Received install request for path: %@", path);
-    if (path.length > 0) {
-        ContraInstaller *installer = [ContraInstaller new];
-        [installer installIpaAtPath:path withReply:^(NSError * _Nullable error) {
+    NSString *bundleId = userInfo[@"bundle_id"];
+    NSLog(@"[contrainstalld] Received install request for path: %@, bundle_id: %@", path, bundleId);
+
+    if (path.length > 0 && bundleId.length > 0) {
+        ContraInstaller *installer = [[ContraInstaller alloc] init];
+        [installer installIpaAtPath:path bundleId:bundleId withReply:^(NSError * _Nullable error) {
             if (error) {
-                NSLog(@"[contrainstalld] Installation failed with error: %@", error);
+                NSLog(@"[contrainstalld] Installation failed for %@ with error: %@", bundleId, error);
             } else {
-                NSLog(@"[contrainstalld] Installation completed successfully for path: %@", path);
+                NSLog(@"[contrainstalld] Installation succeeded for %@", bundleId);
             }
         }];
+    } else {
+        NSLog(@"[contrainstalld] Install request rejected: missing path or bundle_id");
     }
-}
-
-- (NSDictionary *)handleGetPaths:(NSString *)messageName userInfo:(NSDictionary *)userInfo {
-    NSString *bundleId = userInfo[@"bundle_id"];
-    NSLog(@"[contrainstalld] Received get_paths for bundle ID: %@", bundleId);
-
-    if (bundleId.length > 0) {
-        NSDictionary *appInfo = [[DatabaseManager shared] getAppInfoForBundleID:bundleId];
-        if (appInfo) {
-            NSLog(@"[contrainstalld] Found app info for %@: %@", bundleId, appInfo);
-            return appInfo;
-        }
-    }
-
-    return @{@"status": @"not_found"};
 }
 
 @end
 
 int main(int argc, char *argv[], char *envp[]) {
     @autoreleasepool {
-        NSLog(@"[contrainstalld] Starting SandyXpc daemon for %@...", SERVICE_NAME);
+        NSLog(@"[contrainstalld] Starting daemon for %@", CONTRA_SERVICE_NAME);
 
-        DaemonMessageHandler *handler = [DaemonMessageHandler new];
-        SandyXpcMessagingCenter *center = [SandyXpcMessagingCenter centerNamed:SERVICE_NAME];
+        DaemonMessageHandler *handler = [[DaemonMessageHandler alloc] init];
+        SandyXpcMessagingCenter *center = [SandyXpcMessagingCenter centerNamed:CONTRA_SERVICE_NAME];
 
         [center registerForMessageName:@"ping" target:handler selector:@selector(handlePing:userInfo:)];
-        [center registerForMessageName:@"install" target:handler selector:@selector(handleInstall:userInfo:)];
         [center registerForMessageName:@"get_paths" target:handler selector:@selector(handleGetPaths:userInfo:)];
+        [center registerForMessageName:@"install" target:handler selector:@selector(handleInstall:userInfo:)];
 
         [center runServer];
-        NSLog(@"[contrainstalld] SandyXpc daemon is listening for messages.");
+        NSLog(@"[contrainstalld] Server running");
 
         dispatch_main();
     }

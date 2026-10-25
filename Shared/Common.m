@@ -1,83 +1,50 @@
 #import "Common.h"
-#import <SandyXpc/SandyXpc.h>
-#import <libroot.h>
 #import <rootless.h>
 
-SandyXpcMessagingCenter *get_sandy_center(void) {
-    static SandyXpcMessagingCenter *center = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        center = [SandyXpcMessagingCenter centerNamed:@CONTRA_XPC_SERVICE_NAME];
-        NSLog(@"[ContraStore:SandyXPC] Initialized messaging center for %s", CONTRA_XPC_SERVICE_NAME);
-    });
-    return center;
-}
+#define CONTRA_SERVICE_NAME @"com.kurishu.contrainstalld.service"
 
-void send_xpc_ping(void) {
-    SandyXpcMessagingCenter *center = get_sandy_center();
+NSDictionary *send_xpc_ping_sync(void) {
+    // Acquire messaging center for the contrainstalld service
+    SandyXpcMessagingCenter *center = [SandyXpcMessagingCenter centerNamed:CONTRA_SERVICE_NAME];
     if (!center) {
-        NSLog(@"[ContraStore:SandyXPC] Cannot send ping: center is nil");
-        return;
-    }
-
-    NSLog(@"[ContraStore:SandyXPC] Sending ping to daemon...");
-    BOOL sent = [center sendMessageName:@"ping" userInfo:@{}];
-    NSLog(@"[ContraStore:SandyXPC] Ping message sent result: %d", sent);
-}
-
-void send_xpc_install(const char *ipaPath) {
-    if (!ipaPath) {
-        NSLog(@"[ContraStore:SandyXPC] send_xpc_install received NULL path");
-        return;
-    }
-
-    SandyXpcMessagingCenter *center = get_sandy_center();
-    if (!center) {
-        NSLog(@"[ContraStore:SandyXPC] Cannot send install: center is nil");
-        return;
-    }
-
-    const char *resolvedPath = ROOT_PATH(ipaPath);
-    NSString *pathStr = [NSString stringWithUTF8String:resolvedPath];
-    NSDictionary *userInfo = @{
-        @"path": pathStr ?: @""
-    };
-
-    NSLog(@"[ContraStore:SandyXPC] Sending install for path: %@", pathStr);
-    BOOL sent = [center sendMessageName:@"install" userInfo:userInfo];
-    NSLog(@"[ContraStore:SandyXPC] Install message sent result: %d", sent);
-}
-
-NSDictionary *send_xpc_get_paths_sync(const char *bundleId) {
-    if (!bundleId) {
+        NSLog(@"[ContraStore:XPC] Failed to get messaging center for %@", CONTRA_SERVICE_NAME);
         return nil;
     }
 
-    SandyXpcMessagingCenter *center = get_sandy_center();
-    if (!center) {
-        NSLog(@"[ContraStore:SandyXPC] Cannot send get_paths: center is nil");
-        return nil;
-    }
-
-    NSString *bundleStr = [NSString stringWithUTF8String:bundleId];
-    NSDictionary *dict = @{
-        @"bundle_id": bundleStr ?: @""
-    };
-
-    NSLog(@"[ContraStore:SandyXPC] Requesting paths for bundle: %@", bundleStr);
+    NSLog(@"[ContraStore:XPC] Sending synchronous ping to daemon...");
     NSError *error = nil;
-    NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"get_paths" userInfo:dict error:&error];
-    if (error || !reply) {
-        NSLog(@"[ContraStore:SandyXPC] get_paths error: %@", error);
+    NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"ping" userInfo:@{} error:&error];
+    if (error) {
+        NSLog(@"[ContraStore:XPC] Ping failed with error: %@", error);
         return nil;
     }
 
+    NSLog(@"[ContraStore:XPC] Ping reply received: %@", reply);
     return reply;
 }
 
-const char *contra_root_path(const char *path) {
-    if (!path) {
-        return NULL;
+NSDictionary *send_xpc_get_paths_sync(NSString *bundleId) {
+    // Guard against nil input to avoid invalid dictionary creation or unnecessary IPC
+    if (!bundleId) {
+        NSLog(@"[ContraStore:XPC] send_xpc_get_paths_sync called with nil bundleId");
+        return nil;
     }
-    return ROOT_PATH(path);
+
+    SandyXpcMessagingCenter *center = [SandyXpcMessagingCenter centerNamed:CONTRA_SERVICE_NAME];
+    if (!center) {
+        NSLog(@"[ContraStore:XPC] Failed to get messaging center for %@", CONTRA_SERVICE_NAME);
+        return nil;
+    }
+
+    NSLog(@"[ContraStore:XPC] Requesting paths for bundleId: %@", bundleId);
+    NSDictionary *userInfo = @{ @"bundle_id": bundleId };
+    NSError *error = nil;
+    NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"get_paths" userInfo:userInfo error:&error];
+    if (error) {
+        NSLog(@"[ContraStore:XPC] get_paths failed for %@ with error: %@", bundleId, error);
+        return nil;
+    }
+
+    NSLog(@"[ContraStore:XPC] get_paths reply received for %@: %@", bundleId, reply);
+    return reply;
 }
