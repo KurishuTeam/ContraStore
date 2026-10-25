@@ -5,7 +5,6 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
     
     @objc enum InstallationError: Int, LocalizedError {
         case invalidSourceFile
-        case unzipFailed
         case payloadNotFound
         case appBundleNotFound
         case bundleIdentifierNotFound
@@ -14,8 +13,6 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
             switch self {
             case .invalidSourceFile:
                 return "The provided IPA file is invalid or does not exist."
-            case .unzipFailed:
-                return "Failed to extract the IPA archive."
             case .payloadNotFound:
                 return "Payload folder doesn't exist after unzipping."
             case .appBundleNotFound:
@@ -40,7 +37,7 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         }
     }
     
-    func getPaths(forBundleId bundleId: String, withReply reply: @escaping ([String : String]?) -> Void) {
+    func getPathsForBundleId(_ bundleId: String, withReply reply: @escaping ([String : String]?) -> Void) {
         let info = DatabaseManager.shared.getAppInfo(forBundleID: bundleId)
         reply(info)
     }

@@ -16,10 +16,12 @@ extension ContraInstaller {
         
         try fileManager.copyItem(at: sourceURL, to: stagedIpaURL)
         
-        let success = ZIPManager.shared.unzipFile(at: stagedIpaURL, to: stagedDirURL)
+        /*let success = */ZIPManager.shared.unzipFile(at: stagedIpaURL, to: stagedDirURL)
+        /*
         if !success {
             throw InstallationError.unzipFailed
         }
+        */
     }
     
     func locateAppBundle(in stagedDirURL: URL) throws -> URL {

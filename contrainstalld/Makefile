@@ -5,6 +5,6 @@ contrainstalld_SWIFT_MODULE_NAME = contrainstalld
 contrainstalld_FILES = $(wildcard *.swift *.m *.c)
 contrainstalld_INSTALL_PATH = /usr/libexec
 contrainstalld_FRAMEWORKS = Foundation
-contrainstalld_LIBRARIES = sqlite3
+contrainstalld_LIBRARIES = sqlite3 root
 
 include $(THEOS_MAKE_PATH)/tool.mk
