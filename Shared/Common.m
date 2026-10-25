@@ -48,31 +48,38 @@ void send_xpc_install(const char *ipaPath) {
     NSLog(@"[ContraStore:SandyXPC] Install message sent result: %d", sent);
 }
 
-void send_xpc_get_paths(const char *bundleId) {
-    if (!bundleId) {
-        NSLog(@"[ContraStore:SandyXPC] send_xpc_get_paths received NULL bundleId");
-        return;
+NSString *send_xpc_get_paths(const char *pathOrBundleId) {
+    if (!pathOrBundleId) {
+        NSLog(@"[ContraStore:SandyXPC] send_xpc_get_paths received NULL pathOrBundleId");
+        return nil;
     }
 
     SandyXpcMessagingCenter *center = get_sandy_center();
     if (!center) {
         NSLog(@"[ContraStore:SandyXPC] Cannot send get_paths: center is nil");
-        return;
+        return [NSString stringWithUTF8String:pathOrBundleId];
     }
 
-    NSString *bundleIdStr = [NSString stringWithUTF8String:bundleId];
+    NSString *inputStr = [NSString stringWithUTF8String:pathOrBundleId];
     NSDictionary *userInfo = @{
-        @"bundle_id": bundleIdStr ?: @""
+        @"path": inputStr ?: @"",
+        @"bundle_id": [[NSBundle mainBundle] bundleIdentifier] ?: @""
     };
 
-    NSLog(@"[ContraStore:SandyXPC] Sending get_paths for bundle: %@", bundleIdStr);
+    NSLog(@"[ContraStore:SandyXPC] Sending get_paths for input: %@", inputStr);
     NSError *error = nil;
     NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"get_paths" userInfo:userInfo error:&error];
-    if (error) {
+    if (error || !reply) {
         NSLog(@"[ContraStore:SandyXPC] get_paths error: %@", error);
-    } else {
-        NSLog(@"[ContraStore:SandyXPC] get_paths reply: %@", reply);
+        return inputStr;
     }
+
+    NSString *realPath = reply[@"real_path"] ?: reply[@"systemDataPath"] ?: reply[@"path"];
+    if (realPath.length > 0) {
+        return realPath;
+    }
+
+    return inputStr;
 }
 
 const char *contra_root_path(const char *path) {
