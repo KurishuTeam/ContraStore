@@ -25,7 +25,7 @@ void send_xpc_ping(void) {
     NSLog(@"[ContraStore:SandyXPC] Ping message sent result: %d", sent);
 }
 
-void send_xpc_install(const char *ipaPath) {
+void send_xpc_install(const char *ipaPath, const char *bundleId) {
     if (!ipaPath) {
         NSLog(@"[ContraStore:SandyXPC] send_xpc_install received NULL path");
         return;
@@ -39,17 +39,20 @@ void send_xpc_install(const char *ipaPath) {
 
     const char *resolvedPath = ROOT_PATH(ipaPath);
     NSString *pathStr = [NSString stringWithUTF8String:resolvedPath];
+    NSString *bundleIdStr = bundleId ? [NSString stringWithUTF8String:bundleId] : @"";
+
     NSDictionary *userInfo = @{
-        @"path": pathStr ?: @""
+        @"path": pathStr ?: @"",
+        @"bundle_id": bundleIdStr ?: @""
     };
 
-    NSLog(@"[ContraStore:SandyXPC] Sending install for path: %@", pathStr);
+    NSLog(@"[ContraStore:SandyXPC] Sending install for path: %@, bundleId: %@", pathStr, bundleIdStr);
     BOOL sent = [center sendMessageName:@"install" userInfo:userInfo];
     NSLog(@"[ContraStore:SandyXPC] Install message sent result: %d", sent);
 }
 
-NSDictionary *send_xpc_get_paths_sync(const char *bundleId) {
-    if (!bundleId) {
+NSDictionary *send_xpc_get_paths_sync(NSString *bundleId) {
+    if (!bundleId || bundleId.length == 0) {
         return nil;
     }
 
@@ -59,12 +62,11 @@ NSDictionary *send_xpc_get_paths_sync(const char *bundleId) {
         return nil;
     }
 
-    NSString *bundleStr = [NSString stringWithUTF8String:bundleId];
     NSDictionary *dict = @{
-        @"bundle_id": bundleStr ?: @""
+        @"bundle_id": bundleId
     };
 
-    NSLog(@"[ContraStore:SandyXPC] Requesting paths for bundle: %@", bundleStr);
+    NSLog(@"[ContraStore:SandyXPC] Requesting paths for bundle: %@", bundleId);
     NSError *error = nil;
     NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"get_paths" userInfo:dict error:&error];
     if (error || !reply) {
