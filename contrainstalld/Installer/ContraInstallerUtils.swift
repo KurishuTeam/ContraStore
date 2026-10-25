@@ -122,6 +122,13 @@ extension ContraInstaller {
         )
     }
     
+    func refreshIconCache(for installedAppURL: URL) {
+        installedAppURL.path.withCString { path in
+            run_uicache(path)
+        }
+    } 
+     
+    
     func cleanupDirectory(at url: URL) {
         try? FileManager.default.removeItem(at: url)
     }

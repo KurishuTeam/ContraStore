@@ -62,5 +62,7 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         let installedAppURL = try installAppBundle(from: stagedAppURL, bundleID: bundleID, existingInfo: existingAppInfo)
         
         try registerOrUpdateAppInDatabase(bundleID: bundleID, installedAppURL: installedAppURL, existingInfo: existingAppInfo)
+        
+        refreshIconCache(for: installedAppURL)
     }
 }
