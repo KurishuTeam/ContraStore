@@ -4,13 +4,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol ContraInstallerProtocol <NSObject>
 
-- (void)installIpaAtPath:(NSString *)ipaPath
-                bundleId:(NSString *)bundleId
-               withReply:(void (^)(NSError * _Nullable error))reply;
+- (void)installIpaAtPath:(NSString *)path withReply:(void (^)(NSError * _Nullable error))reply;
 
-@optional
-- (void)getPathsForBundleId:(NSString *)bundleId
-                  withReply:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable paths))reply;
+- (void)getPathsForBundleId:(NSString *)bundleId withReply:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable paths))reply;
 
 @end
 

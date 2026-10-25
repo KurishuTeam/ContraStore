@@ -19,11 +19,10 @@
 
 - (void)handleInstall:(NSString *)messageName userInfo:(NSDictionary *)userInfo {
     NSString *path = userInfo[@"path"];
-    NSString *bundleId = userInfo[@"bundle_id"] ?: @"";
-    NSLog(@"[contrainstalld] Received install request for path: %@, bundleId: %@", path, bundleId);
+    NSLog(@"[contrainstalld] Received install request for path: %@", path);
     if (path.length > 0) {
         ContraInstaller *installer = [ContraInstaller new];
-        [installer installIpaAtPath:path bundleId:bundleId withReply:^(NSError * _Nullable error) {
+        [installer installIpaAtPath:path withReply:^(NSError * _Nullable error) {
             if (error) {
                 NSLog(@"[contrainstalld] Installation failed with error: %@", error);
             } else {
