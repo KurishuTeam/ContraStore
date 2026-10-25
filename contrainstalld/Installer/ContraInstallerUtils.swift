@@ -50,20 +50,27 @@ extension ContraInstaller {
     func installAppBundle(from stagedAppURL: URL, bundleID: String, existingInfo: [String: String]?) throws -> URL {
         let fileManager = FileManager.default
         
-        let appContainerURL = Constants.applicationsDirectory.appendingPathComponent(bundleID)
+        try fileManager.createDirectory(at: Constants.applicationsDirectory, withIntermediateDirectories: true)
         
         if let oldBundlePath = existingInfo?["systemBundlePath"],
            fileManager.fileExists(atPath: oldBundlePath) {
             try? fileManager.removeItem(atPath: oldBundlePath)
         }
         
-        if fileManager.fileExists(atPath: appContainerURL.path) {
-            try fileManager.removeItem(at: appContainerURL)
+        var destinationURL = Constants.applicationsDirectory.appendingPathComponent(stagedAppURL.lastPathComponent)
+        
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            let existingBundleID = Bundle(url: destinationURL)?.bundleIdentifier
+            if existingBundleID == bundleID {
+                try fileManager.removeItem(at: destinationURL)
+            } else {
+                destinationURL = Constants.applicationsDirectory.appendingPathComponent("\(bundleID).app")
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try fileManager.removeItem(at: destinationURL)
+                }
+            }
         }
         
-        try fileManager.createDirectory(at: appContainerURL, withIntermediateDirectories: true)
-        
-        let destinationURL = appContainerURL.appendingPathComponent(stagedAppURL.lastPathComponent)
         try fileManager.copyItem(at: stagedAppURL, to: destinationURL)
         
         if let executableName = Bundle(url: destinationURL)?.executableURL?.lastPathComponent {
@@ -73,6 +80,7 @@ extension ContraInstaller {
         
         return destinationURL
     }
+
     
     func registerOrUpdateAppInDatabase(bundleID: String, installedAppURL: URL, existingInfo: [String: String]?) throws {
         let fileManager = FileManager.default
