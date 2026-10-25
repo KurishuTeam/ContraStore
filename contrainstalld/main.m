@@ -1,10 +1,31 @@
 #import <Foundation/Foundation.h>
-#import <dispatch/dispatch.h>
+#import "ContraInstallerProtocol.h"
+#import "contrainstalld-Swift.h"
 
-int main(int argc, const char *argv[]) {
+@interface NSXPCListener (ServiceName)
+- (instancetype)initWithMachServiceName:(NSString *)name;
+@end
+
+@interface ServiceDelegate : NSObject <NSXPCListenerDelegate>
+@end
+
+@implementation ServiceDelegate
+- (BOOL)listener:(NSXPCListener *)listener shouldAcceptNewConnection:(NSXPCConnection *)newConnection {
+    newConnection.exportedInterface = [NSXPCInterface interfaceWithProtocol:@protocol(ContraInstallerProtocol)];
+    newConnection.exportedObject = [ContraInstaller new];
+    [newConnection resume];
+    return YES;
+}
+@end
+
+int main(int argc, char *argv[], char *envp[]) {
     @autoreleasepool {
-        NSLog(@"contrainstalld placeholder daemon started");
+        ServiceDelegate *delegate = [ServiceDelegate new];
+        NSXPCListener *listener = [[NSXPCListener alloc] initWithMachServiceName:@"com.kurishu.contrainstalld"];
+        listener.delegate = delegate;
+        [listener resume];
+        
+        dispatch_main();
     }
-    dispatch_main();
     return 0;
 }
