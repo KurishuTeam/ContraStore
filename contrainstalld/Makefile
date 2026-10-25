@@ -6,7 +6,8 @@ contrainstalld_FILES = $(wildcard *.swift *.m *.c)
 contrainstalld_INSTALL_PATH = /usr/libexec
 contrainstalld_FRAMEWORKS = Foundation
 contrainstalld_LIBRARIES = sqlite3
-contrainstalld_CFLAGS = -I.
+contrainstalld_CFLAGS = -Iinclude
+contrainstalld_BRIDGING_HEADER = include/contrainstalld-Bridging-Header.h
 
 
 include $(THEOS_MAKE_PATH)/tool.mk
