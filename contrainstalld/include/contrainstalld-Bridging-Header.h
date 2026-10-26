@@ -3,4 +3,4 @@
 
 #import "zip.h"
 #import "uicache.h"
-#import "Installer/ContraInstallerProtocol.h"
+#import "ContraInstallerProtocol.h"

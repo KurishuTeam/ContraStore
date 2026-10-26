@@ -13,6 +13,11 @@ public class ContraInstaller: NSObject, ContraInstallerProtocol {
         return path
     }
 
+    @objc(getPaths:)
+    public func getPaths(_ bundleId: String) -> [String: String]? {
+        return DatabaseManager.shared.getAppInfoForBundleID(bundleId)
+    }
+
     @objc(installIpaAtPath:bundleId:withReply:)
     public func installIpa(atPath ipaPath: String, bundleId: String, withReply reply: @escaping @Sendable (Error?) -> Void) {
         NSLog("[ContraInstaller] Starting install for bundleId: %@ at path: %@", bundleId, ipaPath)
@@ -79,9 +84,10 @@ public class ContraInstaller: NSObject, ContraInstallerProtocol {
         // 5. Establish real installation targets and virtual container paths
         let applicationsDir = ROOT_PATH_NS("/Applications")
         let realBundle = (applicationsDir as NSString).appendingPathComponent("\(bundleId).app")
-        let realData = ROOT_PATH_NS("/var/mobile/Library/ContraStore/Data/\(bundleId)")
-        let fakeBundle = "/var/mobile/Containers/Bundle/Application/\(UUID().uuidString)/\(bundleId).app"
-        let fakeData = "/var/mobile/Containers/Data/Application/\(UUID().uuidString)"
+        let containerUUID = UUID().uuidString
+        let fakeBundle = "/var/mobile/Containers/Bundle/Application/\(containerUUID)/\(bundleId).app"
+        let fakeData = "/var/mobile/Containers/Data/Application/\(containerUUID)"
+        let realData = ROOT_PATH_NS("/Data/Application/\(containerUUID)")
 
         do {
             // Clean up old bundle if updating existing installation
@@ -93,9 +99,20 @@ public class ContraInstaller: NSObject, ContraInstallerProtocol {
             }
             try fileManager.copyItem(atPath: stagedAppPath, toPath: realBundle)
 
-            // Ensure isolated real data container exists
-            if !fileManager.fileExists(atPath: realData) {
-                try fileManager.createDirectory(atPath: realData, withIntermediateDirectories: true, attributes: nil)
+            // Ensure isolated real data container and standard directories exist
+            let standardSubdirs = [
+                "Documents",
+                "Library",
+                "Library/Application Support",
+                "Library/Caches",
+                "Library/Preferences",
+                "tmp"
+            ]
+            for subdir in standardSubdirs {
+                let dirPath = (realData as NSString).appendingPathComponent(subdir)
+                if !fileManager.fileExists(atPath: dirPath) {
+                    try fileManager.createDirectory(atPath: dirPath, withIntermediateDirectories: true, attributes: nil)
+                }
             }
         } catch {
             NSLog("[ContraInstaller] File deployment failed: %@", error.localizedDescription)

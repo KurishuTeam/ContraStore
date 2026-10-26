@@ -36,7 +36,10 @@ NSDictionary *send_xpc_get_paths_sync(NSString *bundleId) {
     }
 
     NSLog(@"[ContraStore:XPC] Requesting paths for bundleId: %@", bundleId);
-    NSDictionary *userInfo = @{ @"bundle_id": bundleId };
+    NSDictionary *userInfo = @{
+        CSBundleIDKey: bundleId,
+        @"bundle_id": bundleId
+    };
     NSError *error = nil;
     NSDictionary *reply = [center sendMessageAndReceiveReplyName:@"get_paths" userInfo:userInfo error:&error];
     if (error) {
@@ -47,3 +50,53 @@ NSDictionary *send_xpc_get_paths_sync(NSString *bundleId) {
     NSLog(@"[ContraStore:XPC] get_paths reply received for %@: %@", bundleId, reply);
     return reply;
 }
+
+@implementation ContraInstallerClient
+
++ (instancetype)sharedClient {
+    static ContraInstallerClient *sharedInstance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedInstance = [[ContraInstallerClient alloc] init];
+    });
+    return sharedInstance;
+}
+
+- (nullable NSDictionary<NSString *, NSString *> *)getPaths:(NSString *)bundleId {
+    return (NSDictionary<NSString *, NSString *> *)send_xpc_get_paths_sync(bundleId);
+}
+
+- (void)installIpaAtPath:(NSString *)ipaPath bundleId:(NSString *)bundleId withReply:(void (^)(NSError * _Nullable error))reply {
+    if (!ipaPath || !bundleId) {
+        if (reply) {
+            NSError *error = [NSError errorWithDomain:@"com.kurishu.contrainstalld"
+                                                 code:-1
+                                             userInfo:@{NSLocalizedDescriptionKey: @"Missing ipaPath or bundleId"}];
+            reply(error);
+        }
+        return;
+    }
+
+    SandyXpcMessagingCenter *center = [SandyXpcMessagingCenter centerNamed:CONTRA_SERVICE_NAME];
+    if (!center) {
+        if (reply) {
+            NSError *error = [NSError errorWithDomain:@"com.kurishu.contrainstalld"
+                                                 code:-2
+                                             userInfo:@{NSLocalizedDescriptionKey: @"Failed to connect to contrainstalld service"}];
+            reply(error);
+        }
+        return;
+    }
+
+    NSDictionary *userInfo = @{
+        @"path": ipaPath,
+        @"bundle_id": bundleId,
+        CSBundleIDKey: bundleId
+    };
+    [center sendMessageName:@"install" userInfo:userInfo];
+    if (reply) {
+        reply(nil);
+    }
+}
+
+@end

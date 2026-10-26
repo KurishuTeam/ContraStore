@@ -147,12 +147,23 @@ public class DatabaseManager: NSObject {
                     return ""
                 }
 
+                let bundleIDVal = getString(0)
+                let systemBundleVal = getString(1)
+                let fakeBundleVal = getString(2)
+                let systemDataVal = getString(3)
+                let fakeDataVal = getString(4)
+
                 appInfo = [
-                    "bundle_id": getString(0),
-                    "real_bundle_path": getString(1),
-                    "fake_bundle_path": getString(2),
-                    "real_data_path": getString(3),
-                    "fake_data_path": getString(4)
+                    CSBundleIDKey: bundleIDVal,
+                    CSSystemBundlePathKey: systemBundleVal,
+                    CSFakeBundlePathKey: fakeBundleVal,
+                    CSSystemDataPathKey: systemDataVal,
+                    CSFakeDataPathKey: fakeDataVal,
+                    "bundle_id": bundleIDVal,
+                    "real_bundle_path": systemBundleVal,
+                    "fake_bundle_path": fakeBundleVal,
+                    "real_data_path": systemDataVal,
+                    "fake_data_path": fakeDataVal
                 ]
             }
         }
