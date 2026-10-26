@@ -1,9 +1,5 @@
 #import "ContraXPCClient.h"
 
-typedef NS_OPTIONS(NSUInteger, NSXPCConnectionOptions) {
-    NSXPCConnectionPrivileged = (1 << 12)
-};
-
 @interface NSXPCConnection (Private)
 - (instancetype)initWithMachServiceName:(NSString *)name options:(NSXPCConnectionOptions)options;
 @end
@@ -36,7 +32,7 @@ typedef NS_OPTIONS(NSUInteger, NSXPCConnectionOptions) {
             self->_connection = [[NSXPCConnection alloc] initWithMachServiceName:@"com.kurishu.contrainstalld" options:0];
             self->_connection.remoteObjectInterface = [NSXPCInterface interfaceWithProtocol:@protocol(ContraInstallerProtocol)];
             
-            __weak typeof(self) weakSelf = self;
+            typeof(self) weakSelf = self;
             self->_connection.invalidationHandler = ^{
                 typeof(self) strongSelf = weakSelf;
                 if (strongSelf) {
