@@ -7,7 +7,7 @@ static NSDictionary<NSString *, NSString *> *registeredPaths = nil;
 
 static NSString *dataPathAppendingPathComponent(NSString *component) {
     @autoreleasepool {
-        if (registeredPaths) { // Fixed: changed registeredPath to registeredPaths
+        if (registeredPaths) { 
             NSString *dataPath = registeredPaths[CSFakeDataPathKey];
             NSString *path = [dataPath stringByAppendingPathComponent:component];
             return path;
@@ -15,9 +15,7 @@ static NSString *dataPathAppendingPathComponent(NSString *component) {
             return nil;
         }
     } 
-}   
-
-// poop
+}
 
 %group RedirectionHooks
 
@@ -27,7 +25,7 @@ static NSString *dataPathAppendingPathComponent(NSString *component) {
 } 
 
 %hookf(NSString *, NSTemporaryDirectory) {
-    NSString *tmp = dataPathAppendingComponent(@"tmp");
+    NSString *tmp = dataPathAppendingPathComponent(@"tmp");
     return tmp;
 } 
 
