@@ -34,7 +34,7 @@ jobs:
       - name: Install libSandy to theos
         run: |
           cd libSandy
-          THEOS_PACKAGE_FORMAT="rootless" ./install_to_theos.sh
+          THEOS_PACKAGE_FORMAT="rootless" ARCHS="arm64 arm64e" ./install_to_theos.sh
 
       - name: Build Package
         run: |
