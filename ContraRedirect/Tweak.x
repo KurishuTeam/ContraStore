@@ -87,7 +87,7 @@ static void setupClient() {
     }
 
     int sandyres = libSandy_applyProfile("com.kurishu.contrainstalld");
-    if (sandyres != kLibSandyErrorSuccess) {
+    if (sandyres != kLibSandySuccess) {
         NSLog(@"[ContraRedirect] libSandy failed with code: %d", sandyres);
     }
 
