@@ -24,7 +24,7 @@ public class DatabaseManager: NSObject {
         }
     }
 
-    func ROOT_PATH_NS(_ path: String) -> String {
+    private func ROOT_PATH_NS(_ path: String) -> String {
         // Resolve path against rootless jailbreak prefix using libroot
         let prefixPtr = libroot_dyn_get_jbroot_prefix()
         let prefix = String(cString: prefixPtr)

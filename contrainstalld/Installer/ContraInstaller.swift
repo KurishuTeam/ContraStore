@@ -4,6 +4,15 @@ import Foundation
 @objcMembers
 public class ContraInstaller: NSObject, ContraInstallerProtocol {
 
+    private func ROOT_PATH_NS(_ path: String) -> String {
+        let prefixPtr = libroot_dyn_get_jbroot_prefix()
+        let prefix = String(cString: prefixPtr)
+        if !prefix.isEmpty {
+            return (prefix as NSString).appendingPathComponent(path)
+        }
+        return path
+    }
+
     @objc(installIpaAtPath:bundleId:withReply:)
     public func installIpa(atPath ipaPath: String, bundleId: String, withReply reply: @escaping @Sendable (Error?) -> Void) {
         NSLog("[ContraInstaller] Starting install for bundleId: %@ at path: %@", bundleId, ipaPath)
