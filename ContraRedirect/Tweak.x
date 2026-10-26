@@ -1,10 +1,11 @@
 #import <Foundation/Foundation.h>
+#import <libSandy.h>
 #import "ContraXPCClient.h"
 #import "ContraInstaller.h"
 
 static NSDictionary<NSString *, NSString *> *registeredPaths = nil;
 
-static NSString *dataPathAppendingComponent(NSString *component) {
+static NSString *dataPathAppendingPathComponent(NSString *component) {
     @autoreleasepool {
         if (registeredPaths) { // Fixed: changed registeredPath to registeredPaths
             NSString *dataPath = registeredPaths[CSFakeDataPathKey];
@@ -38,7 +39,7 @@ static NSString *dataPathAppendingComponent(NSString *component) {
 
     switch (directory) {
         case NSDocumentDirectory: {
-            NSString *docPath = dataPathAppendingComponent(@"Documents");
+            NSString *docPath = dataPathAppendingPathComponent(@"Documents");
             return docPath ? @[[NSURL fileURLWithPath:docPath]] : @[];
         }
         case NSLibraryDirectory: {
