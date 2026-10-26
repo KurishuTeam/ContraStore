@@ -48,7 +48,7 @@ jobs:
 
     - name: Copy XPC Headers
       run: |
-        cp -r $(xcrun --sdk macosx --show-sdk-path)/usr/include/xpc $THEOS/include/
+        cp -r xpc $THEOS/include/
 
     - name: Checkout libSandy
       uses: actions/checkout@v4
