@@ -15,18 +15,29 @@ public class ContraInstaller: NSObject, ContraInstallerProtocol {
 
     @objc(getPaths:)
     public func getPaths(_ bundleId: String) -> [String: String]? {
-        guard let info = DatabaseManager.shared.getAppInfoForBundleID(bundleId) else { return nil }
+        guard let info = DatabaseManager.shared.getAppInfo(forBundleID: bundleId) else { return nil }
+        let bId = info["bundleID"] ?? info["bundle_id"] ?? bundleId
+        let sysBundle = info["systemBundlePath"] ?? info["real_bundle_path"] ?? ""
+        let fakeBundle = info["fakeBundlePath"] ?? info["fake_bundle_path"] ?? ""
+        let sysData = info["systemDataPath"] ?? info["real_data_path"] ?? ""
+        let fakeData = info["fakeDataPath"] ?? info["fake_data_path"] ?? ""
+
         return [
-            CSBundleIDKey: info["bundle_id"] ?? bundleId,
-            CSSystemBundlePathKey: info["real_bundle_path"] ?? "",
-            CSFakeBundlePathKey: info["fake_bundle_path"] ?? "",
-            CSSystemDataPathKey: info["real_data_path"] ?? "",
-            CSFakeDataPathKey: info["fake_data_path"] ?? "",
-            "bundle_id": info["bundle_id"] ?? bundleId,
-            "real_bundle_path": info["real_bundle_path"] ?? "",
-            "fake_bundle_path": info["fake_bundle_path"] ?? "",
-            "real_data_path": info["real_data_path"] ?? "",
-            "fake_data_path": info["fake_data_path"] ?? ""
+            CSBundleIDKey: bId,
+            CSSystemBundlePathKey: sysBundle,
+            CSFakeBundlePathKey: fakeBundle,
+            CSSystemDataPathKey: sysData,
+            CSFakeDataPathKey: fakeData,
+            "bundleID": bId,
+            "systemBundlePath": sysBundle,
+            "fakeBundlePath": fakeBundle,
+            "systemDataPath": sysData,
+            "fakeDataPath": fakeData,
+            "bundle_id": bId,
+            "real_bundle_path": sysBundle,
+            "fake_bundle_path": fakeBundle,
+            "real_data_path": sysData,
+            "fake_data_path": fakeData
         ]
     }
 
@@ -133,12 +144,12 @@ public class ContraInstaller: NSObject, ContraInstallerProtocol {
         }
 
         // 6. Record mappings in SQLite database
-        let saved = DatabaseManager.shared.saveApp(
-            bundleId: bundleId,
-            realBundle: realBundle,
-            fakeBundle: fakeBundle,
-            realData: realData,
-            fakeData: fakeData
+        let saved = DatabaseManager.shared.insertApp(
+            bundleID: bundleId,
+            systemBundlePath: realBundle,
+            systemDataPath: realData,
+            fakeBundlePath: fakeBundle,
+            fakeDataPath: fakeData
         )
 
         guard saved else {

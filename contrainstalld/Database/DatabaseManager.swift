@@ -4,17 +4,18 @@ import SQLite3
 @objc(DatabaseManager)
 @objcMembers
 public class DatabaseManager: NSObject {
-    @objc public static let shared = DatabaseManager()
-
+    
+    public static let shared = DatabaseManager()
+    
     private var db: OpaquePointer? = nil
     private let dbQueue = DispatchQueue(label: "com.kurishu.contrainstalld.dbQueue", qos: .utility)
-    private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-
+    private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    
     private override init() {
         super.init()
         initializeDatabase()
     }
-
+    
     deinit {
         dbQueue.sync {
             if db != nil {
@@ -23,122 +24,75 @@ public class DatabaseManager: NSObject {
             }
         }
     }
-
-    private func ROOT_PATH_NS(_ path: String) -> String {
-        // Resolve path against rootless jailbreak prefix using libroot
-        let prefixPtr = libroot_dyn_get_jbroot_prefix()
-        let prefix = String(cString: prefixPtr)
-        if !prefix.isEmpty {
-            return (prefix as NSString).appendingPathComponent(path)
-        }
-        return path
-    }
-
-    private func initializeDatabase() {
+    
+    public func initializeDatabase() {
         dbQueue.sync {
-            let dbPath = ROOT_PATH_NS("/var/mobile/Library/ContraStore/contra.db")
-            let dbDir = (dbPath as NSString).deletingLastPathComponent
+            let directoryPath = Constants.applicationSupportDirectoryPath
             let fileManager = FileManager.default
-
-            if !fileManager.fileExists(atPath: dbDir) {
+            
+            if !fileManager.fileExists(atPath: directoryPath) {
                 do {
-                    try fileManager.createDirectory(atPath: dbDir, withIntermediateDirectories: true, attributes: nil)
+                    try fileManager.createDirectory(atPath: directoryPath, withIntermediateDirectories: true, attributes: nil)
                 } catch {
-                    NSLog("[DatabaseManager] Error creating directory at %@: %@", dbDir, error.localizedDescription)
+                    print("[DatabaseManager] Error creating directory: \(error.localizedDescription)")
                     return
                 }
             }
-
+            
+            let dbPath = (directoryPath as NSString).appendingPathComponent("database.db")
+            
             if sqlite3_open(dbPath, &db) == SQLITE_OK {
                 let createTableQuery = """
-                CREATE TABLE IF NOT EXISTS installed_apps (
-                    bundle_id TEXT PRIMARY KEY,
-                    real_bundle_path TEXT,
-                    fake_bundle_path TEXT,
-                    real_data_path TEXT,
-                    fake_data_path TEXT
+                CREATE TABLE IF NOT EXISTS apps (
+                    bundleID TEXT PRIMARY KEY,
+                    systemBundlePath TEXT,
+                    systemDataPath TEXT,
+                    fakeBundlePath TEXT,
+                    fakeDataPath TEXT
                 );
                 """
-
+                
                 var errMsg: UnsafeMutablePointer<CChar>? = nil
                 if sqlite3_exec(db, createTableQuery, nil, nil, &errMsg) != SQLITE_OK {
-                    let errStr = errMsg.flatMap { String(cString: $0) } ?? "Unknown error"
-                    NSLog("[DatabaseManager] Error creating table: %@", errStr)
+                    let errorString = errMsg.flatMap { String(cString: $0) } ?? "Unknown error"
+                    print("[DatabaseManager] Error creating table: \(errorString)")
                     sqlite3_free(errMsg)
                 } else {
-                    NSLog("[DatabaseManager] Database initialized at %@", dbPath)
+                    print("[DatabaseManager] Database initialized successfully at: \(dbPath)")
                 }
             } else {
-                NSLog("[DatabaseManager] Failed to open database at %@", dbPath)
+                print("[DatabaseManager] Failed to open database at path: \(dbPath)")
             }
         }
     }
-
-    @objc public func saveApp(bundleId: String, realBundle: String, fakeBundle: String, realData: String, fakeData: String) -> Bool {
-        var success = false
-
-        dbQueue.sync {
-            guard let db = db else { return }
-
-            let query = """
-            INSERT OR REPLACE INTO installed_apps (bundle_id, real_bundle_path, fake_bundle_path, real_data_path, fake_data_path)
-            VALUES (?, ?, ?, ?, ?);
-            """
-
-            var stmt: OpaquePointer? = nil
-            guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
-                let err = String(cString: sqlite3_errmsg(db))
-                NSLog("[DatabaseManager] Failed to prepare insert statement: %@", err)
-                return
-            }
-
-            defer {
-                sqlite3_finalize(stmt)
-            }
-
-            _ = bundleId.withCString { sqlite3_bind_text(stmt, 1, $0, -1, SQLITE_TRANSIENT) }
-            _ = realBundle.withCString { sqlite3_bind_text(stmt, 2, $0, -1, SQLITE_TRANSIENT) }
-            _ = fakeBundle.withCString { sqlite3_bind_text(stmt, 3, $0, -1, SQLITE_TRANSIENT) }
-            _ = realData.withCString { sqlite3_bind_text(stmt, 4, $0, -1, SQLITE_TRANSIENT) }
-            _ = fakeData.withCString { sqlite3_bind_text(stmt, 5, $0, -1, SQLITE_TRANSIENT) }
-
-            if sqlite3_step(stmt) == SQLITE_DONE {
-                success = true
-                NSLog("[DatabaseManager] Successfully saved app: %@", bundleId)
-            } else {
-                let err = String(cString: sqlite3_errmsg(db))
-                NSLog("[DatabaseManager] Failed to execute insert: %@", err)
-            }
-        }
-
-        return success
-    }
-
-    @objc public func getAppInfoForBundleID(_ bundleId: String) -> [String: String]? {
+    
+    public func getAppInfo(forBundleID bundleID: String) -> [String: String]? {
         var appInfo: [String: String]? = nil
-
+        
         dbQueue.sync {
             guard let db = db else { return }
-
+            
             let query = """
-            SELECT bundle_id, real_bundle_path, fake_bundle_path, real_data_path, fake_data_path
-            FROM installed_apps
-            WHERE bundle_id = ?;
+            SELECT bundleID, systemBundlePath, systemDataPath, fakeBundlePath, fakeDataPath 
+            FROM apps 
+            WHERE bundleID = ?;
             """
-
+            
             var stmt: OpaquePointer? = nil
             guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
                 let err = String(cString: sqlite3_errmsg(db))
-                NSLog("[DatabaseManager] Failed to prepare select statement: %@", err)
+                print("[DatabaseManager] Failed to prepare statement: \(err)")
                 return
             }
-
+            
             defer {
                 sqlite3_finalize(stmt)
             }
-
-            _ = bundleId.withCString { sqlite3_bind_text(stmt, 1, $0, -1, SQLITE_TRANSIENT) }
-
+            
+            bundleID.withCString { cBundleID in
+                sqlite3_bind_text(stmt, 1, cBundleID, -1, sqliteTransient)
+            }
+            
             if sqlite3_step(stmt) == SQLITE_ROW {
                 let getString = { (index: Int32) -> String in
                     if let cString = sqlite3_column_text(stmt, index) {
@@ -146,17 +100,71 @@ public class DatabaseManager: NSObject {
                     }
                     return ""
                 }
-
+                
                 appInfo = [
-                    "bundle_id": getString(0),
-                    "real_bundle_path": getString(1),
-                    "fake_bundle_path": getString(2),
-                    "real_data_path": getString(3),
-                    "fake_data_path": getString(4)
+                    "bundleID": getString(0),
+                    "systemBundlePath": getString(1),
+                    "systemDataPath": getString(2),
+                    "fakeBundlePath": getString(3),
+                    "fakeDataPath": getString(4)
                 ]
             }
         }
-
+        
         return appInfo
+    }
+    
+    @discardableResult
+    public func insertApp(bundleID: String, 
+                          systemBundlePath: String, 
+                          systemDataPath: String, 
+                          fakeBundlePath: String, 
+                          fakeDataPath: String) -> Bool {
+        var success = false
+        
+        dbQueue.sync {
+            guard let db = db else { return }
+            
+            let query = """
+            INSERT OR REPLACE INTO apps (bundleID, systemBundlePath, systemDataPath, fakeBundlePath, fakeDataPath) 
+            VALUES (?, ?, ?, ?, ?);
+            """
+            
+            var stmt: OpaquePointer? = nil
+            guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+                let err = String(cString: sqlite3_errmsg(db))
+                print("[DatabaseManager] Failed to prepare insert statement: \(err)")
+                return
+            }
+            
+            defer {
+                sqlite3_finalize(stmt)
+            }
+            
+            bundleID.withCString { sqlite3_bind_text(stmt, 1, $0, -1, sqliteTransient) }
+            systemBundlePath.withCString { sqlite3_bind_text(stmt, 2, $0, -1, sqliteTransient) }
+            systemDataPath.withCString { sqlite3_bind_text(stmt, 3, $0, -1, sqliteTransient) }
+            fakeBundlePath.withCString { sqlite3_bind_text(stmt, 4, $0, -1, sqliteTransient) }
+            fakeDataPath.withCString { sqlite3_bind_text(stmt, 5, $0, -1, sqliteTransient) }
+            
+            if sqlite3_step(stmt) == SQLITE_DONE {
+                success = true
+                print("[DatabaseManager] Successfully saved app: \(bundleID)")
+            } else {
+                let err = String(cString: sqlite3_errmsg(db))
+                print("[DatabaseManager] Failed to execute insert: \(err)")
+            }
+        }
+        
+        return success
+    }
+
+    // Compatibility aliases
+    @objc public func getAppInfoForBundleID(_ bundleId: String) -> [String: String]? {
+        return getAppInfo(forBundleID: bundleId)
+    }
+
+    @objc public func saveApp(bundleId: String, realBundle: String, fakeBundle: String, realData: String, fakeData: String) -> Bool {
+        return insertApp(bundleID: bundleId, systemBundlePath: realBundle, systemDataPath: realData, fakeBundlePath: fakeBundle, fakeDataPath: fakeData)
     }
 }
