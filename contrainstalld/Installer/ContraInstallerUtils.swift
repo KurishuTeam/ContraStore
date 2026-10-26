@@ -81,8 +81,8 @@ extension ContraInstaller {
         return destinationURL
     }
 
-    
-    func registerOrUpdateAppInDatabase(bundleID: String, installedAppURL: URL, existingInfo: [String: String]?) throws {
+    @discardableResult
+    func registerOrUpdateAppInDatabase(bundleID: String, installedAppURL: URL, existingInfo: [String: String]?) throws -> [String: String] {
         let fileManager = FileManager.default
         let appName = installedAppURL.lastPathComponent
         
@@ -99,9 +99,10 @@ extension ContraInstaller {
             let fakeBundleParent = (existingFakeBundle as NSString).deletingLastPathComponent
             fakeAppPath = (fakeBundleParent as NSString).appendingPathComponent(appName)
         } else {
-            realDataPath = Constants.dataFolderDirectory.appendingPathComponent(UUID().uuidString).path
-            fakeAppPath = "/private/var/containers/Bundle/Application/\(UUID().uuidString)/\(appName)"
-            fakeDataPath = "/private/var/mobile/Containers/Data/Application/\(UUID().uuidString)"
+            let uuid = UUID().uuidString
+            realDataPath = Constants.dataFolderDirectory.appendingPathComponent(uuid).path
+            fakeAppPath = "/private/var/containers/Bundle/Application/\(uuid)/\(appName)"
+            fakeDataPath = "/private/var/mobile/Containers/Data/Application/\(uuid)"
         }
         
         if !fileManager.fileExists(atPath: realDataPath) {
@@ -120,14 +121,46 @@ extension ContraInstaller {
             fakeBundlePath: fakeAppPath,
             fakeDataPath: fakeDataPath
         )
+        
+        return [
+            "fakeDataPath": fakeDataPath,
+            "fakeBundlePath": fakeAppPath,
+            "systemDataPath": realDataPath,
+            "systemBundlePath": installedAppURL.path
+        ]   
     }
     
     func refreshIconCache(for installedAppURL: URL) {
         installedAppURL.path.withCString { path in
             uicache(path)
         }
-    } 
-     
+    }
+    
+    func createStandardAppDirectories(with appInfo: [String: String]) throws {
+        let fileManager = FileManager.default
+        
+        guard let fakeDataPath = appInfo["fakeDataPath"] else { return }
+        let dataURL = URL(fileURLWithPath: fakeDataPath)
+        
+        let documentsURL = dataURL.appendingPathComponent("Documents")
+        let libraryURL = dataURL.appendingPathComponent("Library")
+        let cachesURL = dataURL.appendingPathComponent("Caches")
+        let appSupportURL = libraryURL.appendingPathComponent("Application Support")
+        let tempURL = dataURL.appendingPathComponent("tmp")
+        
+        let subdirectories = [documentsURL, libraryURL, cachesURL, appSupportURL, tempURL]
+        
+        for url in subdirectories {
+            if !fileManager.fileExists(atPath: url.path) {
+                let attributes: [FileAttributeKey: Any] = [
+                    .ownerAccountID: 501,
+                    .groupOwnerAccountID: 501,
+                    .posixPermissions: 0o755
+                ]
+                try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: attributes)
+            }
+        }
+    }
     
     func cleanupDirectory(at url: URL) {
         try? FileManager.default.removeItem(at: url)
