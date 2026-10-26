@@ -15,7 +15,19 @@ public class ContraInstaller: NSObject, ContraInstallerProtocol {
 
     @objc(getPaths:)
     public func getPaths(_ bundleId: String) -> [String: String]? {
-        return DatabaseManager.shared.getAppInfoForBundleID(bundleId)
+        guard let info = DatabaseManager.shared.getAppInfoForBundleID(bundleId) else { return nil }
+        return [
+            CSBundleIDKey: info["bundle_id"] ?? bundleId,
+            CSSystemBundlePathKey: info["real_bundle_path"] ?? "",
+            CSFakeBundlePathKey: info["fake_bundle_path"] ?? "",
+            CSSystemDataPathKey: info["real_data_path"] ?? "",
+            CSFakeDataPathKey: info["fake_data_path"] ?? "",
+            "bundle_id": info["bundle_id"] ?? bundleId,
+            "real_bundle_path": info["real_bundle_path"] ?? "",
+            "fake_bundle_path": info["fake_bundle_path"] ?? "",
+            "real_data_path": info["real_data_path"] ?? "",
+            "fake_data_path": info["fake_data_path"] ?? ""
+        ]
     }
 
     @objc(installIpaAtPath:bundleId:withReply:)
