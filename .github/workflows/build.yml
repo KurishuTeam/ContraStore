@@ -17,19 +17,24 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install GNU Make
+        run: |
+          brew install make
+          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+
       - name: Setup Theos
         uses: Randomblock1/theos-action@v1
 
-      - name: Checkout libsandy
+      - name: Checkout libSandy
         uses: actions/checkout@v4
         with:
           repository: opa334/libSandy
-          path: libsandy
+          path: libSandy
 
-      - name: Install libsandy to theos
+      - name: Install libSandy to theos
         run: |
           cd libSandy
-          ./install_to_theos.sh
+          THEOS_PACKAGE_FORMAT="rootless" ./install_to_theos.sh
 
       - name: Build Package
         run: |
