@@ -1,12 +1,17 @@
 #import <UIKit/UIKit.h>
 
-// Placeholder redirect library: no functional hooks yet.
-%hook UIView
-- (void)setHidden:(BOOL)hidden {
-    %orig;
+%ctor {
+   // file hooks
 }
-%end
 
-__attribute__((constructor))
-static void contraredirect_init(void) {
+ 
+%hook NSFileManager
+
+- (NSArray *)URLsForDirectory:(NSSearchPathDirectory)directory
+                    inDomains:(NSSearchPathDomainMask)domainMask {
+    NSArray *result = %orig;
+    NSLog(@"[ContraRedirect] URLsForDirectory: %@", result);
+    return result;
 }
+
+%end
