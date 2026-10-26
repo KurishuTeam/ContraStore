@@ -17,6 +17,8 @@ static NSString *dataPathAppendingPathComponent(NSString *component) {
     } 
 }   
 
+// poop
+
 %group RedirectionHooks
 
 %hookf(NSString *, NSHomeDirectory) {
