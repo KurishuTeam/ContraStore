@@ -89,7 +89,7 @@ public class DatabaseManager: NSObject {
                 sqlite3_finalize(stmt)
             }
             
-            bundleID.withCString { cBundleID in
+            _ = bundleID.withCString { cBundleID in
                 sqlite3_bind_text(stmt, 1, cBundleID, -1, sqliteTransient)
             }
             
@@ -141,11 +141,11 @@ public class DatabaseManager: NSObject {
                 sqlite3_finalize(stmt)
             }
             
-            bundleID.withCString { sqlite3_bind_text(stmt, 1, $0, -1, sqliteTransient) }
-            systemBundlePath.withCString { sqlite3_bind_text(stmt, 2, $0, -1, sqliteTransient) }
-            systemDataPath.withCString { sqlite3_bind_text(stmt, 3, $0, -1, sqliteTransient) }
-            fakeBundlePath.withCString { sqlite3_bind_text(stmt, 4, $0, -1, sqliteTransient) }
-            fakeDataPath.withCString { sqlite3_bind_text(stmt, 5, $0, -1, sqliteTransient) }
+            _ = bundleID.withCString { sqlite3_bind_text(stmt, 1, $0, -1, sqliteTransient) }
+            _ = systemBundlePath.withCString { sqlite3_bind_text(stmt, 2, $0, -1, sqliteTransient) }
+            _ = systemDataPath.withCString { sqlite3_bind_text(stmt, 3, $0, -1, sqliteTransient) }
+            _ = fakeBundlePath.withCString { sqlite3_bind_text(stmt, 4, $0, -1, sqliteTransient) }
+            _ = fakeDataPath.withCString { sqlite3_bind_text(stmt, 5, $0, -1, sqliteTransient) }
             
             if sqlite3_step(stmt) == SQLITE_DONE {
                 success = true
@@ -159,11 +159,7 @@ public class DatabaseManager: NSObject {
         return success
     }
 
-    // Compatibility aliases
-    @objc public func getAppInfoForBundleID(_ bundleId: String) -> [String: String]? {
-        return getAppInfo(forBundleID: bundleId)
-    }
-
+    // Compatibility alias
     @objc public func saveApp(bundleId: String, realBundle: String, fakeBundle: String, realData: String, fakeData: String) -> Bool {
         return insertApp(bundleID: bundleId, systemBundlePath: realBundle, systemDataPath: realData, fakeBundlePath: fakeBundle, fakeDataPath: fakeData)
     }
