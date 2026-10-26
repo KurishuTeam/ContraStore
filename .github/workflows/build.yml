@@ -17,6 +17,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install latest make
+        run: |
+          brew install make
+          echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
+
       - name: Setup Theos
         uses: Randomblock1/theos-action@v1
 
