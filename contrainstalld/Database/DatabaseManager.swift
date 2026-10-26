@@ -24,7 +24,7 @@ public class DatabaseManager: NSObject {
         }
     }
 
-    private func ROOT_PATH_NS(_ path: String) -> String {
+    func ROOT_PATH_NS(_ path: String) -> String {
         // Resolve path against rootless jailbreak prefix using libroot
         let prefixPtr = libroot_dyn_get_jbroot_prefix()
         let prefix = String(cString: prefixPtr)
@@ -147,22 +147,12 @@ public class DatabaseManager: NSObject {
                     return ""
                 }
 
-                let bId = getString(0)
-                let realB = getString(1)
-                let fakeB = getString(2)
-                let realD = getString(3)
-                let fakeD = getString(4)
-
                 appInfo = [
-                    "bundle_id": bId,
-                    "real_bundle_path": realB,
-                    "fake_bundle_path": fakeB,
-                    "real_data_path": realD,
-                    "fake_data_path": fakeD,
-                    "real_data": realD,
-                    "fake_data": fakeD,
-                    "real_bundle": realB,
-                    "fake_bundle": fakeB
+                    "bundle_id": getString(0),
+                    "real_bundle_path": getString(1),
+                    "fake_bundle_path": getString(2),
+                    "real_data_path": getString(3),
+                    "fake_data_path": getString(4)
                 ]
             }
         }

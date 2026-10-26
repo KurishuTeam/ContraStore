@@ -1,6 +1,5 @@
 #import <Foundation/Foundation.h>
 #import <SandyXpc/SandyXpc.h>
-#import <rootless.h>
 #import "Installer/ContraInstallerProtocol.h"
 #import "contrainstalld-Swift.h"
 
@@ -22,6 +21,17 @@
 - (NSDictionary *)handleGetPaths:(NSString *)messageName userInfo:(NSDictionary *)userInfo {
     NSString *bundleId = userInfo[@"bundle_id"] ?: @"";
     NSLog(@"[contrainstalld] Received get_paths request for bundle_id: %@", bundleId);
+
+    // Query SQLite database for registered application paths
+    if (bundleId.length > 0) {
+        NSDictionary *appInfo = [[DatabaseManager shared] getAppInfoForBundleID:bundleId];
+        if (appInfo) {
+            NSLog(@"[contrainstalld] Found app info in database for %@: %@", bundleId, appInfo);
+            return appInfo;
+        }
+    }
+
+    // Fallback to stub dictionary if bundle is not registered
     return @{
         @"bundle_id": bundleId,
         @"real_data": @"/var/mobile/",

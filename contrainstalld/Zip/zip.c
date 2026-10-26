@@ -2,6 +2,8 @@
 #include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <libroot.h>
+#include <rootless.h>
 
 extern char **environ;
 
@@ -10,9 +12,10 @@ int unzip(const char *zip_path, const char *dest_dir) {
     
     char *args[] = {"unzip", (char *)zip_path, "-d", (char *)dest_dir, NULL};
     
-    int status = posix_spawnp(&pid, "unzip", NULL, NULL, args, environ);
+    // Resolve rootless binary path so launchd environment can execute unzip
+    int status = posix_spawn(&pid, ROOT_PATH("/usr/bin/unzip"), NULL, NULL, args, environ);
     if (status != 0) {
-        perror("posix_spawnp failed");
+        perror("posix_spawn unzip failed");
         return -1;
     }
 
