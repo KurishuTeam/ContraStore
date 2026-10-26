@@ -9,39 +9,60 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
-
+    runs-on: macos-14
+    
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install dependencies
+      run: |
+        brew install ldid-procursus make
+        
+    - name: Checkout Theos
+      uses: actions/checkout@v4
+      with:
+        repository: theos/theos
+        path: theos
+        submodules: recursive
 
-      - name: Install GNU Make
-        run: |
-          brew install make
-          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+    - name: Setup environment
+      run: |
+        echo "THEOS=$GITHUB_WORKSPACE/theos" >> $GITHUB_ENV
+        
+    - name: Install iOS SDKs
+      run: |
+        cd theos
+        ./bin/install-sdk iPhoneOS16.5
+        ./bin/install-sdk iPhoneOS14.5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.2'
 
-      - name: Setup Theos
-        uses: Randomblock1/theos-action@v1
+    - name: Checkout libSandy
+      uses: actions/checkout@v4
+      with:
+        repository: opa334/libSandy
+        path: libSandy
 
-      - name: Checkout libSandy
-        uses: actions/checkout@v4
-        with:
-          repository: opa334/libSandy
-          path: libSandy
-
-      - name: Install libSandy to theos
-        run: |
-          cd libSandy
-          THEOS_PACKAGE_FORMAT="rootless" ARCHS="arm64 arm64e" ./install_to_theos.sh
-
-      - name: Build Package
-        run: |
-          make package FINALPACKAGE=1
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ContraStore
-          path: packages/*.deb
+    - name: Install libSandy to theos
+      run: |
+        cd libSandy
+        THEOS_PACKAGE_SCHEME=rootless ARCHS="arm64 arm64e" ./install_to_theos.sh
+        
+    - name: Build Package
+      run: | 
+        gmake package FINALPACKAGE=1
+        
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ContraStore-rootless
+        path: packages/*.deb
+        if-no-files-found: error
