@@ -20,6 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
         brew install ldid-procursus make
+        echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
         
     - name: Checkout Theos
       uses: actions/checkout@v4
@@ -45,6 +46,10 @@ jobs:
       with:
         xcode-version: '16.2'
 
+    - name: Copy XPC Headers
+      run: |
+        cp -r $(xcrun --sdk macosx --show-sdk-path)/usr/include/xpc $THEOS/include/
+
     - name: Checkout libSandy
       uses: actions/checkout@v4
       with:
@@ -58,11 +63,11 @@ jobs:
         
     - name: Build Package
       run: | 
-        gmake package FINALPACKAGE=1
+        make package FINALPACKAGE=1
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ContraStore-rootless
+        name: ContraStore
         path: packages/*.deb
         if-no-files-found: error
