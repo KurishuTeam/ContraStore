@@ -23,7 +23,7 @@ jobs:
       - name: Checkout libsandy
         uses: actions/checkout@v4
         with:
-          repository: opa334/libSandu
+          repository: opa334/libSandy
           path: libsandy
 
       - name: Install libsandy to theos
