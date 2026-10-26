@@ -16,48 +16,6 @@ static NSString *dataPathAppendingComponent(NSString *component) {
     } 
 }   
 
-static void setupClient() {
-    NSDictionary *infoPlist = [[NSBundle mainBundle] infoDictionary];
-    if (!infoPlist || infoPlist[@"NSExtension"] != nil) {
-        return;
-    }
-
-    NSString *execPath = [[NSBundle mainBundle] executablePath];
-    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
-    if (!execPath || !bundleID) {
-        return;
-    }
-
-    BOOL isApp = [execPath containsString:@"/Applications/"] || 
-                [execPath containsString:@"/Containers/Bundle/Application/"];
-    if (!isApp) {
-        return;
-    }
-
-    if ([bundleID isEqualToString:@"com.kurishu.contrastore"] ||
-        [bundleID isEqualToString:@"com.apple.springboard"]) {
-        return;
-    }
-
-    int sandyres = libSandy_applyProfile("com.kurishu.contrainstalld");
-    if (sandyres != kLibSandyErrorSuccess) {
-        NSLog(@"[ContraRedirect] libSandy failed with code: %d", sandyres);
-    }
-
-    registeredPaths = [[ContraXPCClient sharedClient] fetchPathsSynchronouslyForBundleID:bundleID];
-
-    if (registeredPaths && registeredPaths.count > 0) {
-        NSLog(@"[ContraRedirect] Activating redirection for %@ -> %@", bundleID, registeredPaths);
-        %init(RedirectionHooks);
-    }
-}
-
-%ctor {
-    @autoreleasepool {
-        setupClient();
-    } 
-}
-
 %group RedirectionHooks
 
 %hookf(NSString *, NSHomeDirectory) {
@@ -103,3 +61,46 @@ static void setupClient() {
 %end // %hook NSFileManager
 
 %end // %group RedirectionHooks
+
+static void setupClient() {
+    NSDictionary *infoPlist = [[NSBundle mainBundle] infoDictionary];
+    if (!infoPlist || infoPlist[@"NSExtension"] != nil) {
+        return;
+    }
+
+    NSString *execPath = [[NSBundle mainBundle] executablePath];
+    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+    if (!execPath || !bundleID) {
+        return;
+    }
+
+    BOOL isApp = [execPath containsString:@"/Applications/"] || 
+                [execPath containsString:@"/Containers/Bundle/Application/"];
+    if (!isApp) {
+        return;
+    }
+
+    if ([bundleID isEqualToString:@"com.kurishu.contrastore"] ||
+        [bundleID isEqualToString:@"com.apple.springboard"]) {
+        return;
+    }
+
+    int sandyres = libSandy_applyProfile("com.kurishu.contrainstalld");
+    if (sandyres != kLibSandyErrorSuccess) {
+        NSLog(@"[ContraRedirect] libSandy failed with code: %d", sandyres);
+    }
+
+    registeredPaths = [[ContraXPCClient sharedClient] fetchPathsSynchronouslyForBundleID:bundleID];
+
+    if (registeredPaths && registeredPaths.count > 0) {
+        NSLog(@"[ContraRedirect] Activating redirection for %@ -> %@", bundleID, registeredPaths);
+        %init(RedirectionHooks);
+    }
+}
+
+%ctor {
+    @autoreleasepool {
+        setupClient();
+    } 
+}
+
