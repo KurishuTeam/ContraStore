@@ -76,6 +76,20 @@
     }];
 }
 
+- (void)fetchAllInstalledAppsWithCompletion:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable apps))completion {
+    id<ContraInstallerProtocol> proxy = [[self connection] remoteObjectProxyWithErrorHandler:^(NSError * _Nonnull xpcError) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(nil);
+        });
+    }];
+    
+    [proxy getAllInstalledAppsWithReply:^(NSDictionary<NSString *, NSString *> * _Nullable apps) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(apps);
+        });
+    }];
+}
+
 - (nullable NSDictionary<NSString *, NSString *> *)fetchPathsSynchronouslyForBundleID:(NSString *)bundleID {
     __block NSDictionary<NSString *, NSString *> *resultInfo = nil;
     

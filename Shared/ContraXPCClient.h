@@ -10,6 +10,7 @@ NS_ASSUME_NONNULL_BEGIN
 // async for UI
 - (void)installIPA:(NSString *)ipaPath completion:(void (^)(NSError * _Nullable error))completion;
 - (void)fetchPathsForBundleID:(NSString *)bundleID completion:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable info))completion;
+- (void)fetchAllInstalledAppsWithCompletion:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable apps))completion;
 
 // sync for redirect
 - (nullable NSDictionary<NSString *, NSString *> *)fetchPathsSynchronouslyForBundleID:(NSString *)bundleID;

@@ -42,6 +42,11 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         reply(info)
     }
     
+    func getAllInstalledApps(withReply reply: @escaping ([String : String]?) -> Void) {
+        let apps =  DatabaseManager.shared.getAllInstalledApps()
+        reply(apps)
+    } 
+    
     private func performInstallation(atPath path: String) throws {
         let sourceURL = URL(fileURLWithPath: path).standardizedFileURL
         

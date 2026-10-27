@@ -39,7 +39,7 @@ public class DatabaseManager: NSObject {
                 }
             }
             
-            let dbPath = (directoryPath as NSString).appendingPathComponent("database.db")
+            let dbPath = (directoryPath asNSString).appendingPathComponent("database.db")
             
             if sqlite3_open(dbPath, &db) == SQLITE_OK {
                 let createTableQuery = """
@@ -112,6 +112,50 @@ public class DatabaseManager: NSObject {
         }
         
         return appInfo
+    }
+    
+    public func getAllInstalledApps() -> [[String: String]] {
+        var apps: [[String: String]] = []
+        
+        dbQueue.sync {
+            guard let db = db else { return }
+            
+            let query = """
+            SELECT bundleID, systemBundlePath, systemDataPath, fakeBundlePath, fakeDataPath 
+            FROM apps;
+            """
+            
+            var stmt: OpaquePointer? = nil
+            guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+                let err = String(cString: sqlite3_errmsg(db))
+                print("[DatabaseManager] Failed to prepare statement for getAllInstalledApps: \(err)")
+                return
+            }
+            
+            defer {
+                sqlite3_finalize(stmt)
+            }
+            
+            let getString = { (index: Int32) -> String in
+                if let cString = sqlite3_column_text(stmt, index) {
+                    return String(cString: cString)
+                }
+                return ""
+            }
+            
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                let appInfo: [String: String] = [
+                    "bundleID": getString(0),
+                    "systemBundlePath": getString(1),
+                    "systemDataPath": getString(2),
+                    "fakeBundlePath": getString(3),
+                    "fakeDataPath": getString(4)
+                ]
+                apps.append(appInfo)
+            }
+        }
+        
+        return apps
     }
     
     @discardableResult
