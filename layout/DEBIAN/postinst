@@ -1,10 +1,12 @@
 #!/bin/sh
 
-# Load daemon service
+# Load daemon service (unload first to reload updated plist)
 if [ -f "/var/jb/Library/LaunchDaemons/com.kurishu.contrainstalld.plist" ]; then
-    launchctl load /var/jb/Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
+    launchctl unload /var/jb/Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
+    launchctl load -w /var/jb/Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
 elif [ -f "/Library/LaunchDaemons/com.kurishu.contrainstalld.plist" ]; then
-    launchctl load /Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
+    launchctl unload /Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
+    launchctl load -w /Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
 fi
 
 # Request SpringBoard restart (respring) when installing via Sileo / Cydia / Zebra
