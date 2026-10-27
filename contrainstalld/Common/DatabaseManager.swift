@@ -39,7 +39,7 @@ public class DatabaseManager: NSObject {
                 }
             }
             
-            let dbPath = (directoryPath asNSString).appendingPathComponent("database.db")
+            let dbPath = (directoryPath as NSString).appendingPathComponent("database.db")
             
             if sqlite3_open(dbPath, &db) == SQLITE_OK {
                 let createTableQuery = """
