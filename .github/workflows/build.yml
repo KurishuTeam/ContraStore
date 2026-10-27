@@ -68,7 +68,7 @@ jobs:
     - name: Extract CLI Binary
       run: |
         mkdir -p build-cli
-        find ct/.theos -type f -name ct -exec cp {} build-cli/ \; || true
+        find .theos -type f -name ct -exec cp {} build-cli/ \; || true
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
