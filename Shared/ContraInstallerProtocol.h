@@ -8,7 +8,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)getPathsForBundleId:(NSString *)bundleId withReply:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable paths))reply;
 
-- (void)getAllInstalledAppsWithReply:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable apps))reply;
+- (void)getAllInstalledAppsWithReply:(void (^)(NSArray<NSDictionary<NSString *, NSString *> *apps))reply;
 
 @end
 
