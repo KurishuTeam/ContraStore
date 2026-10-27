@@ -1,7 +1,19 @@
 #!/bin/sh
 
-launchctl load /Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
+# Load daemon service
+if [ -f "/var/jb/Library/LaunchDaemons/com.kurishu.contrainstalld.plist" ]; then
+    launchctl load /var/jb/Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
+elif [ -f "/Library/LaunchDaemons/com.kurishu.contrainstalld.plist" ]; then
+    launchctl load /Library/LaunchDaemons/com.kurishu.contrainstalld.plist 2>/dev/null
+fi
 
-sudo launchctl reboot userspace
+# Request SpringBoard restart (respring) when installing via Sileo / Cydia / Zebra
+if [ -n "$CYDIA" ]; then
+    CYDIA_FD=$(echo "$CYDIA" | cut -d' ' -f1)
+    eval "echo 'finish:restart' >&$CYDIA_FD"
+elif [ -n "$SILEO" ]; then
+    SILEO_FD=$(echo "$SILEO" | cut -d' ' -f1)
+    eval "echo 'finish:restart' >&$SILEO_FD"
+fi
 
 exit 0
