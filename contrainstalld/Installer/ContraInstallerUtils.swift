@@ -140,15 +140,16 @@ extension ContraInstaller {
         let fileManager = FileManager.default
         
         guard let fakeDataPath = appInfo["fakeDataPath"] else { return }
-        let dataURL = URL(fileURLWithPath: fakeDataPath)
+        var subdirectories: [URL] = []
+        subdirectories.append(URL(fileURLWithPath: fakeDataPath))
         
-        let documentsURL = dataURL.appendingPathComponent("Documents")
-        let libraryURL = dataURL.appendingPathComponent("Library")
-        let cachesURL = dataURL.appendingPathComponent("Caches")
-        let appSupportURL = libraryURL.appendingPathComponent("Application Support")
-        let tempURL = dataURL.appendingPathComponent("tmp")
+        subdirectories.append(dataURL.appendingPathComponent("Documents"))
+        subdirectories.append(dataURL.appendingPathComponent("Library"))
+        subdirectories.append(dataURL.appendingPathComponent("Caches"))
+        subdirectories.append(libraryURL.appendingPathComponent("Application Support"))
         
-        let subdirectories = [documentsURL, libraryURL, cachesURL, appSupportURL, tempURL]
+subdirectories.append(dataURL.appendingPathComponent("tmp"))
+    subdirectories.append(libraryURL.appendingPathComponent("Preferences"))
         
         for url in subdirectories {
             if !fileManager.fileExists(atPath: url.path) {

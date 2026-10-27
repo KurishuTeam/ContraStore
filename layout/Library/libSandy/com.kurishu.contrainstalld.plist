@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://apple.com">
+<plist version="1.0">
+<dict>
+    <key>AllowedProcesses</key>
+    <array>
+        <string>com.example.myclientapp</string>
+        <string>USER_APPLICATIONS</string>
+    </array>
+
+    <key>Extensions</key>
+    <array>
+        <dict>
+            <key>type</key>
+            <string>mach</string>
+            <key>extension_class</key>
+            <string>com.apple.app-sandbox.mach</string>
+            <key>mach_name</key>
+            <string>com.kurishu.contrainstalld</string>
+        </dict>
+    </array>
+</dict>
+</plist>

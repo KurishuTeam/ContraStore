@@ -1,5 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <libSandy.h>
+#import <rootless.h>
+
 #import "ContraXPCClient.h"
 #import "ContraInstaller.h"
 
@@ -75,8 +77,7 @@ static void setupClient() {
         return;
     }
 
-    BOOL isApp = [execPath containsString:@"/Applications/"] || 
-                [execPath containsString:@"/Containers/Bundle/Application/"];
+    BOOL isApp = [execPath containsString:ROOT_PATH_NS(@"/Applications/")];
     if (!isApp) {
         return;
     }
