@@ -1,10 +1,9 @@
 include $(THEOS)/makefiles/common.mk
 
-LIBRARY_NAME = ContraRedirect
-ContraRedirect_FILES = Tweak.x $(THEOS_PROJECT_DIR)/Shared/Common.m
-ContraRedirect_INSTALL_PATH = /usr/lib
+TWEAK_NAME = ContraRedirect
+ContraRedirect_FILES = Tweak.x $(THEOS_PROJECT_DIR)/Shared/ContraXPCClient.m
 ContraRedirect_FRAMEWORKS = UIKit Foundation
-ContraRedirect_LIBRARIES = xpc
+ContraRedirect_LIBRARIES = sandy
 ContraRedirect_CFLAGS = -I$(THEOS_PROJECT_DIR)/Shared
 
-include $(THEOS_MAKE_PATH)/library.mk
+include $(THEOS_MAKE_PATH)/tweak.mk
