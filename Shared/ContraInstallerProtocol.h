@@ -10,6 +10,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)getAllInstalledAppsWithReply:(void (^)(NSArray<NSDictionary<NSString *, NSString *> *apps))reply;
 
+- (void)getAppIconForBundleId:(NSString *)bundleId withReply:(void (^)(NSData * _Nullable iconData))reply;
+
 @end
 
 NS_ASSUME_NONNULL_END

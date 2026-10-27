@@ -47,6 +47,19 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         reply(apps)
     } 
     
+    func getAppIconForBundleId(_ bundleId: String, withReply reply: @escaping (Data?) -> Void) {
+        guard let info = DatabaseManager.shared.getAppInfo(forBundleID: bundleId),
+        let bundlePath = info["systemBundlePath"] else { reply(nil) }
+        
+        
+        let res = getAppIconData(forPath: bundlePath)
+        
+        reply(res)
+    } 
+        
+        
+        
+    
     private func performInstallation(atPath path: String) throws {
         let sourceURL = URL(fileURLWithPath: path).standardizedFileURL
         
@@ -72,4 +85,6 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         
         refreshIconCache(for: installedAppURL)
     }
+    
+    
 }

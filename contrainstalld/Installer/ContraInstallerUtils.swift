@@ -165,6 +165,53 @@ subdirectories.append(dataURL.appendingPathComponent("tmp"))
         }
     }
     
+    import Foundation
+
+    func getAppIconData(forPath bundlePath: URL) -> Data? {
+        guard let bundleURL = URL(fileUrlWithPath: bundlePath),
+        let bundle = Bundle(url: bundleURL),
+              let infoPlist = bundle.infoDictionary else {
+            return nil
+        }
+        
+        var iconName: String? = nil
+        
+        if let icons = infoPlist["CFBundleIcons"] as? [String: Any],
+           let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
+           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String] {
+            iconName = iconFiles.last
+        }
+        else if let legacyIcons = infoPlist["CFBundleIconFiles"] as? [String] {
+            iconName = legacyIcons.last
+        }
+        else if let singleIcon = infoPlist["CFBundleIconFile"] as? String {
+            iconName = singleIcon
+        }
+        
+        guard let name = iconName else { return nil }
+        
+        let possibleExtensions = ["png", "icns"]
+        let possibleSuffixes = ["", "@3x", "@2x"]
+        
+        for ext in possibleExtensions {
+            for suffix in possibleSuffixes {
+                let targetName = name + suffix
+                if let iconURL = bundle.url(forResource: targetName, withExtension: ext),
+                   let data = try? Data(contentsOf: iconURL) {
+                    return data
+                }
+            }
+        }
+    
+        let directURL = bundleURL.appendingPathComponent(name)
+        if let data = try? Data(contentsOf: directURL) {
+            return data
+        }
+        
+        return nil
+    }
+
+    
     func cleanupDirectory(at url: URL) {
         try? FileManager.default.removeItem(at: url)
     }

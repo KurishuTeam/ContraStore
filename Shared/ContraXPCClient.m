@@ -76,16 +76,32 @@
     }];
 }
 
-- (void)fetchAllInstalledAppsWithCompletion:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable apps))completion {
+- (void)fetchAllInstalledAppsWithCompletion:(void (^)(NSArray<NSDictionary<NSString *, NSString *> *> * _Nullable apps))completion {
     id<ContraInstallerProtocol> proxy = [[self connection] remoteObjectProxyWithErrorHandler:^(NSError * _Nonnull xpcError) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (completion) completion(nil);
         });
     }];
     
-    [proxy getAllInstalledAppsWithReply:^(NSDictionary<NSString *, NSString *> * _Nullable apps) {
+    [proxy getAllInstalledAppsWithReply:^(NSArray<NSDictionary<NSString *, NSString *> *> * _Nullable apps) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (completion) completion(apps);
+        });
+    }];
+}
+
+- (void)getAppIconForBundleId:(NSString *)bundleId completion:(void (^)(NSData * _Nullable iconData))completion {
+    id<ContraInstallerProtocol> proxy = [[self connection] remoteObjectProxyWithErrorHandler:^(NSError * _Nonnull xpcError) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(nil);
+        });
+    }];
+    
+    // Assuming the protocol method is named `getAppIconForBundleId:withReply:`
+    // If your protocol actually uses `completion:` instead of `withReply:`, swap `withReply:` for `completion:` below.
+    [proxy getAppIconForBundleId:bundleId withReply:^(NSData * _Nullable iconData) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(iconData);
         });
     }];
 }
