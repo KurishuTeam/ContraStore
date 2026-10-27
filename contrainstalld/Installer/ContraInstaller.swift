@@ -49,7 +49,10 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
     
     func getAppIcon(forBundleId bundleId: String, withReply reply: @escaping (Data?) -> Void) {
         guard let info = DatabaseManager.shared.getAppInfo(forBundleID: bundleId),
-        let bundlePath = info["systemBundlePath"] else { reply(nil) }
+        let bundlePath = info["systemBundlePath"] else { 
+            reply(nil) 
+            return
+        }
         
         
         let res = getAppIconData(forPath: bundlePath)
