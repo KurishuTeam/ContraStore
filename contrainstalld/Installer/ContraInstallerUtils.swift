@@ -166,8 +166,9 @@ subdirectories.append(dataURL.appendingPathComponent("tmp"))
     }
 
     func getAppIconData(forPath bundlePath: String) -> Data? {
-        guard let bundleURL = URL(fileURLWithPath: bundlePath),
-        let bundle = Bundle(url: bundleURL),
+        let bundleURL = URL(fileURLWithPath: bundlePath)
+
+        guard let bundle = Bundle(url: bundleURL),
               let infoPlist = bundle.infoDictionary else {
             return nil
         }
