@@ -69,6 +69,20 @@
     }];
 }
 
+- (void)uninstallAppWithBundleID:(NSString *)bundleID completion:(void (^)(NSError * _Nullable error))completion {
+    id<ContraInstallerProtocol> proxy = [[self connection] remoteObjectProxyWithErrorHandler:^(NSError * _Nonnull xpcError) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(xpcError);
+        });
+    }];
+    
+    [proxy uninstallAppWithBundleId:bundleID withReply:^(NSError * _Nullable uninstallError) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(uninstallError);
+        });
+    }];
+}
+
 - (void)fetchPathsForBundleID:(NSString *)bundleID completion:(void (^)(NSDictionary<NSString *, NSString *> * _Nullable info))completion {
     id<ContraInstallerProtocol> proxy = [[self connection] remoteObjectProxyWithErrorHandler:^(NSError * _Nonnull xpcError) {
         dispatch_async(dispatch_get_main_queue(), ^{

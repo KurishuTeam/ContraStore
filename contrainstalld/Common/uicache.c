@@ -29,3 +29,26 @@ int uicache(const char *app_path) {
 
     return -1;
 }
+
+int uicache_unregister(const char *app_path) {
+    pid_t pid;
+    char *args[] = {"uicache", "-u", (char *)app_path, NULL};
+
+    int status = posix_spawn(&pid, ROOT_PATH("/usr/bin/uicache"), NULL, NULL, args, environ);
+    if (status != 0) {
+        perror("posix_spawn uicache unregister failed");
+        return -1;
+    }
+
+    int child_status;
+    if (waitpid(pid, &child_status, 0) == -1) {
+        perror("waitpid uicache unregister failed");
+        return -1;
+    }
+
+    if (WIFEXITED(child_status)) {
+        return WEXITSTATUS(child_status) == 0 ? 0 : -1;
+    }
+
+    return -1;
+}
