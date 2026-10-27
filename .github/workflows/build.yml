@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, "3" ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, "3" ]
   workflow_dispatch:
 
 jobs:
@@ -64,6 +64,11 @@ jobs:
     - name: Build Package
       run: | 
         make package FINALPACKAGE=1
+
+    - name: Extract CLI Binary
+      run: |
+        mkdir -p build-cli
+        find ct/.theos -type f -name ct -exec cp {} build-cli/ \; || true
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
@@ -71,3 +76,10 @@ jobs:
         name: ContraStore
         path: packages/*.deb
         if-no-files-found: error
+
+    - name: Upload CLI Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ct-cli
+        path: build-cli/ct
+        if-no-files-found: warn
