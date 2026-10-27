@@ -84,7 +84,7 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         
         let appInfo = try registerOrUpdateAppInDatabase(bundleID: bundleID, installedAppURL: installedAppURL, existingInfo: existingAppInfo)
         
-        try 
+        try createStandardAppDirectories(with: appInfo)
         
         refreshIconCache(for: installedAppURL)
     }
