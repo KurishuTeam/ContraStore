@@ -141,11 +141,13 @@ extension ContraInstaller {
         
         guard let fakeDataPath = appInfo["fakeDataPath"] else { return }
         var subdirectories: [URL] = []
-        subdirectories.append(URL(fileURLWithPath: fakeDataPath))
         
+        let dataURL = URL(fileURLWithPath: fakeDataPath)
         subdirectories.append(dataURL.appendingPathComponent("Documents"))
-        subdirectories.append(dataURL.appendingPathComponent("Library"))
-        subdirectories.append(dataURL.appendingPathComponent("Caches"))
+        
+        let libraryURL = dataURL.appendingPathComponent("Library")
+        subdirectories.append(libraryURL)
+        subdirectories.append(libraryURL.appendingPathComponent("Caches"))
         subdirectories.append(libraryURL.appendingPathComponent("Application Support"))
         
 subdirectories.append(dataURL.appendingPathComponent("tmp"))
