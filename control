@@ -6,4 +6,4 @@ Description: Alternative app installer for jailbroken devices
 Maintainer: kurishu
 Author: kurishu
 Section: Applications
-Depends: firmware (>= 15.0) | ${LIBSWIFT}, unzip, libSandy
+Depends: firmware (>= 15.0), ${LIBSWIFT}, unzip, com.opa334.libsandy
