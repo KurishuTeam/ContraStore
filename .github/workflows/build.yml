@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [ main, "3" ]
+    branches: [ main, "3", resigning ]
   pull_request:
-    branches: [ main, "3" ]
+    branches: [ main, "3", resigning ]
   workflow_dispatch:
 
 jobs:

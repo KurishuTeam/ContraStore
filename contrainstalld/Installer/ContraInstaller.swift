@@ -8,6 +8,7 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         case payloadNotFound
         case appBundleNotFound
         case bundleIdentifierNotFound
+        case resigningFailed
         case appNotInstalled
         
         var errorDescription: String? {
@@ -20,6 +21,8 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
                 return "App bundle (.app) doesn't exist."
             case .bundleIdentifierNotFound:
                 return "App bundle identifier could not be found."
+            case .resigningFailed:
+                return "App bundle resigning failed" 
             case .appNotInstalled:
                 return "The application is not installed."
             }
