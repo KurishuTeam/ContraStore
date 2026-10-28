@@ -20,6 +20,8 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
                 return "App bundle (.app) doesn't exist."
             case .bundleIdentifierNotFound:
                 return "App bundle identifier could not be found."
+            case .resigningFailed:
+                return "App bundle resigning failed" 
             }
         }
     }
