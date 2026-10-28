@@ -121,7 +121,7 @@ static void printUsage(const char *progName) {
     printf("  %suninstall%s, %srm%s <bundle-id> [more...]     Uninstall an application by bundle identifier\n", colGreen(), colReset(), colGreen(), colReset());
     printf("  %slist%s, %sls%s                                List all applications managed by ContraStore\n", colGreen(), colReset(), colGreen(), colReset());
     printf("  %sinfo%s, %spaths%s <bundle-id>                 Inspect container and redirect paths for an app\n", colGreen(), colReset(), colGreen(), colReset());
-    printf("  %slogin%s [apple-id]                            Authenticate with Apple ID (SRP-6a + 2FA)\n", colGreen(), colReset());
+    printf("  %slogin%s [apple-id] [--debug]                  Authenticate with Apple ID (SRP-6a + 2FA Push)\n", colGreen(), colReset());
     printf("  %slogout%s                                      Sign out and remove saved session\n", colGreen(), colReset());
     printf("  %swhoami%s, %saccount%s, %sstatus%s              Show active Apple ID session and team info\n", colGreen(), colReset(), colGreen(), colReset(), colGreen(), colReset());
     printf("  %sanisette%s                                    Test on-device genuine Anisette attestation (akd)\n", colGreen(), colReset());
@@ -130,7 +130,7 @@ static void printUsage(const char *progName) {
     printf("  %shelp%s, %s-h%s, %s--help%s                     Show this help message\n\n", colGreen(), colReset(), colGreen(), colReset(), colGreen(), colReset());
     printf("%sEXAMPLES:%s\n", colBold(), colReset());
     printf("  %s install MyApp.ipa\n", progName);
-    printf("  %s login user@example.com\n", progName);
+    printf("  %s login user@example.com --debug\n", progName);
     printf("  %s whoami\n", progName);
     printf("  %s anisette\n", progName);
     printf("  %s sign MyApp.ipa -o MyApp-signed.ipa\n", progName);
@@ -371,9 +371,18 @@ static int cmdInfo(int argc, char *argv[]) {
 
 static int cmdLogin(int argc, char *argv[]) {
     NSString *appleID = nil;
-    if (argc >= 3) {
-        appleID = [NSString stringWithUTF8String:argv[2]];
-    } else {
+    BOOL isDebug = NO;
+
+    for (int i = 2; i < argc; i++) {
+        NSString *arg = [NSString stringWithUTF8String:argv[i]];
+        if ([arg isEqualToString:@"--debug"] || [arg isEqualToString:@"-d"] || [arg isEqualToString:@"-v"] || [arg isEqualToString:@"--verbose"]) {
+            isDebug = YES;
+        } else if (!appleID) {
+            appleID = arg;
+        }
+    }
+
+    if (!appleID || appleID.length == 0) {
         printf("  %s Apple ID: ", colCyan());
         fflush(stdout);
         char buf[256];
@@ -385,6 +394,11 @@ static int cmdLogin(int argc, char *argv[]) {
     if (!appleID || appleID.length == 0) {
         fprintf(stderr, "%s[-] Error:%s Apple ID cannot be empty.\n", colRed(), colReset());
         return 1;
+    }
+
+    if (isDebug) {
+        printf("%s[DEBUG] Initiating login for Apple ID:%s %s\n", colGray(), colReset(), appleID.UTF8String);
+        printf("%s[DEBUG] Fetching Anisette & sending SRP-6a init to Apple GrandSlam...%s\n", colGray(), colReset());
     }
 
     char *pass = getpass("  Enter Password: ");
@@ -420,8 +434,14 @@ static int cmdLogin(int argc, char *argv[]) {
     if (status != 0) return status;
 
     if (needs2FA) {
-        printf("\n%s[!] Two-factor authentication required.%s\n", colYellow(), colReset());
-        printf("  %s Enter 6-digit verification code: ", colCyan());
+        printf("\n%s[!] Two-Factor Authentication required.%s\n", colYellow(), colReset());
+        if (initialMsg.length > 0) {
+            printf("%s[*] %s%s\n", colCyan(), initialMsg.UTF8String, colReset());
+        } else {
+            printf("%s[*] Verification code push has been triggered to your Apple devices.%s\n", colCyan(), colReset());
+        }
+        printf("%s[*] (Check your iPhone, iPad, or Mac for the Apple ID Verification Code)%s\n\n", colGray(), colReset());
+        printf("  %sEnter 6-digit verification code:%s ", colBold(), colReset());
         fflush(stdout);
 
         char codeBuf[64];
@@ -431,6 +451,11 @@ static int cmdLogin(int argc, char *argv[]) {
         }
 
         NSString *code = [[NSString stringWithUTF8String:codeBuf] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+
+        if (isDebug) {
+            printf("%s[DEBUG] Submitting code '%s' to https://gsa.apple.com/grandslam/GsService2/validate...%s\n",
+                   colGray(), code.UTF8String, colReset());
+        }
 
         return runAsyncWithSpinner(@"Validating verification code with Apple...", 45.0, ^(void (^done)(int code)) {
             [[ContraXPCClient sharedClient] submit2FACode:code completion:^(BOOL success, NSString * _Nullable message, NSError * _Nullable error) {
