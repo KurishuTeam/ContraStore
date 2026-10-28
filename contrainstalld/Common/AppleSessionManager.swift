@@ -14,21 +14,53 @@ import ObjectiveC
 import Darwin
 #endif
 
-// MARK: - Debug Logger
+// MARK: - Pro-Grade Realtime Debug Logger
 
 public final class ContraAuthLog: @unchecked Sendable {
     public static let shared = ContraAuthLog()
     private var logs: [String] = []
     private let lock = NSLock()
+    public let logFilePath: String = jbPath("/tmp/contra_auth_debug.log")
 
-    public func log(_ msg: String) {
+    private init() {
+        let dir = (logFilePath as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    }
+
+    public func clear() {
         lock.lock()
         defer { lock.unlock() }
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-        let line = "[\(timestamp)] [ContraAuth] \(msg)"
+        logs.removeAll()
+        try? FileManager.default.removeItem(atPath: logFilePath)
+    }
+
+    public func log(tag: String = "AUTH", _ msg: String) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        let timestamp = formatter.string(from: Date())
+        let line = "[\(timestamp)] [\(tag)] \(msg)\n"
+
         logs.append(line)
-        if logs.count > 200 { logs.removeFirst() }
-        NSLog("%@", line)
+        if logs.count > 400 { logs.removeFirst() }
+
+        NSLog("[ContraAuth] [%@] %@", tag, msg)
+
+        // Write directly to realtime log file for CLI streaming
+        if let data = line.data(using: .utf8) {
+            if FileManager.default.fileExists(atPath: logFilePath) {
+                if let fileHandle = try? FileHandle(forWritingTo: URL(fileURLWithPath: logFilePath)) {
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(data)
+                    try? fileHandle.close()
+                }
+            } else {
+                try? data.write(to: URL(fileURLWithPath: logFilePath))
+                chmod(logFilePath, 0o666)
+            }
+        }
     }
 
     public func recentLogs() -> [String] {
@@ -66,7 +98,7 @@ public final class AppleSessionManager: NSObject {
     // MARK: - Local Anisette (akd / AuthKit)
 
     public func fetchLocalAnisette() throws -> [String: String] {
-        ContraAuthLog.shared.log("Fetching local on-device Anisette headers via AuthKit / akd...")
+        ContraAuthLog.shared.log(tag: "ANISETTE", "Connecting to Apple AuthKit daemon (akd) on iOS...")
 
         #if canImport(ObjectiveC) && canImport(Darwin)
         let candidatePaths = [
@@ -84,7 +116,7 @@ public final class AppleSessionManager: NSObject {
         }
 
         guard let sessionClass = NSClassFromString("AKAppleIDSession") as? NSObject.Type else {
-            ContraAuthLog.shared.log("AKAppleIDSession class not found")
+            ContraAuthLog.shared.log(tag: "ANISETTE", "❌ AKAppleIDSession class not found in AuthKit.framework")
             throw NSError(
                 domain: "com.kurishu.contrainstalld",
                 code: -1,
@@ -96,7 +128,7 @@ public final class AppleSessionManager: NSObject {
         let initSel = NSSelectorFromString("initWithIdentifier:")
         guard let allocated = sessionClass.perform(allocSel)?.takeUnretainedValue(),
               let session = allocated.perform(initSel, with: "com.apple.gs.xcode.auth")?.takeUnretainedValue() else {
-            ContraAuthLog.shared.log("Failed to allocate or initialize AKAppleIDSession")
+            ContraAuthLog.shared.log(tag: "ANISETTE", "❌ Failed to instantiate AKAppleIDSession for Xcode service")
             throw NSError(
                 domain: "com.kurishu.contrainstalld",
                 code: -1,
@@ -141,7 +173,13 @@ public final class AppleSessionManager: NSObject {
             headers["X-Mme-Device-Id"] = UUID().uuidString
         }
 
-        ContraAuthLog.shared.log("Anisette obtained successfully. Device ID: \(headers["X-Mme-Device-Id"] ?? "N/A"), MD-M present: \(headers["X-Apple-I-MD-M"] != nil)")
+        let devID = headers["X-Mme-Device-Id"] ?? "N/A"
+        let srl = headers["X-Apple-I-SRL-NO"] ?? "0"
+        let rinfo = headers["X-Apple-I-MD-RINFO"] ?? "17106176"
+        let hasOTP = headers["X-Apple-I-MD"] != nil
+        let hasMachineID = headers["X-Apple-I-MD-M"] != nil
+
+        ContraAuthLog.shared.log(tag: "ANISETTE", "Attestation extracted: DeviceID=\(devID.prefix(8))..., Serial=\(srl), RINFO=\(rinfo), OTP=\(hasOTP), MD-M=\(hasMachineID)")
         return headers
         #else
         throw NSError(
@@ -206,7 +244,7 @@ public final class AppleSessionManager: NSObject {
         }
 
         let op = parameters["o"] as? String ?? "unknown"
-        ContraAuthLog.shared.log("[GSA] Sending request 'o=\(op)' to \(url.path)...")
+        ContraAuthLog.shared.log(tag: "GSA-HTTP", "-> POST https://gsa.apple.com/grandslam/GsService2 (op=\(op), payload=\(plistData.count) bytes)")
 
         let semaphore = DispatchSemaphore(value: 0)
         var responseData: Data?
@@ -223,16 +261,16 @@ public final class AppleSessionManager: NSObject {
         _ = semaphore.wait(timeout: .now() + 35.0)
 
         if let err = responseError {
-            ContraAuthLog.shared.log("[GSA] Network error: \(err.localizedDescription)")
+            ContraAuthLog.shared.log(tag: "GSA-HTTP", "❌ Network error: \(err.localizedDescription)")
             throw err
         }
 
         guard let http = httpResponse else {
-            ContraAuthLog.shared.log("[GSA] No HTTP response received")
+            ContraAuthLog.shared.log(tag: "GSA-HTTP", "❌ No HTTP response received from Apple")
             throw NSError(domain: "com.kurishu.contrainstalld", code: -1, userInfo: [NSLocalizedDescriptionKey: "No response from Apple authentication server."])
         }
 
-        ContraAuthLog.shared.log("[GSA] Received HTTP \(http.statusCode)")
+        ContraAuthLog.shared.log(tag: "GSA-HTTP", "<- HTTP \(http.statusCode) OK (Response: \(responseData?.count ?? 0) bytes)")
 
         guard let raw = responseData, !raw.isEmpty else {
             throw NSError(domain: "com.kurishu.contrainstalld", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "Empty response from GrandSlam."])
@@ -240,7 +278,7 @@ public final class AppleSessionManager: NSObject {
 
         guard let plist = try? PropertyListSerialization.propertyList(from: raw, options: [], format: nil) as? [String: Any] else {
             let snippet = String(data: raw.prefix(200), encoding: .utf8) ?? "binary"
-            ContraAuthLog.shared.log("[GSA] Invalid plist response: \(snippet)")
+            ContraAuthLog.shared.log(tag: "GSA-HTTP", "❌ Invalid plist response: \(snippet)")
             throw NSError(domain: "com.kurishu.contrainstalld", code: -2, userInfo: [NSLocalizedDescriptionKey: "GrandSlam returned non-plist payload."])
         }
 
@@ -251,9 +289,9 @@ public final class AppleSessionManager: NSObject {
             let em = status["em"] as? String ?? ""
             let au = status["au"] as? String ?? ""
             let hsc = status["hsc"] as? Int ?? 0
-            ContraAuthLog.shared.log("[GSA] Status: ec=\(ec), em='\(em)', au='\(au)', hsc=\(hsc)")
+            ContraAuthLog.shared.log(tag: "GSA-HTTP", "Status check: ec=\(ec), em='\(em)', au='\(au)', hsc=\(hsc)")
 
-            // ec != 0 is an authentication failure unless it is a 2FA challenge (-21669 / hsc 409)
+            // ec != 0 is an error unless it's a 2FA challenge (-21669 / hsc 409)
             if ec != 0 && ec != -21669 && hsc != 409 {
                 throw NSError(domain: "com.kurishu.contrainstalld", code: ec, userInfo: [NSLocalizedDescriptionKey: em.isEmpty ? "GrandSlam Error (\(ec))" : em])
             }
@@ -262,7 +300,7 @@ public final class AppleSessionManager: NSObject {
         return responseDict
     }
 
-    // MARK: - 2FA Push Trigger (Fortiva Reference)
+    // MARK: - 2FA Push Trigger (Fortiva Method)
 
     /// Triggers push notification to trusted devices via https://gsa.apple.com/auth/verify/trusteddevice
     private func triggerTrustedDevice2FA(
@@ -271,7 +309,7 @@ public final class AppleSessionManager: NSObject {
         anisette: [String: String]
     ) -> Bool {
         let identityToken = Data("\(dsid):\(idmsToken)".utf8).base64EncodedString()
-        ContraAuthLog.shared.log("[2FA] Triggering Push Notification to trusted devices for DSID: \(dsid)...")
+        ContraAuthLog.shared.log(tag: "2FA-PUSH", "Triggering 2FA Push Notification to trusted devices for DSID: \(dsid)...")
 
         guard let url = URL(string: "https://gsa.apple.com/auth/verify/trusteddevice") else { return false }
 
@@ -299,7 +337,7 @@ public final class AppleSessionManager: NSObject {
             let sema = DispatchSemaphore(value: 0)
             var statusCode = 0
 
-            let task = URLSession.shared.dataTask(with: request) { _, resp, err in
+            let task = URLSession.shared.dataTask(with: request) { _, resp, _ in
                 if let http = resp as? HTTPURLResponse {
                     statusCode = http.statusCode
                 }
@@ -308,29 +346,29 @@ public final class AppleSessionManager: NSObject {
             task.resume()
             _ = sema.wait(timeout: .now() + 15.0)
 
-            ContraAuthLog.shared.log("[2FA] trusteddevice attempt \(attempt): HTTP \(statusCode)")
+            ContraAuthLog.shared.log(tag: "2FA-PUSH", "-> GET /auth/verify/trusteddevice (attempt \(attempt)): HTTP \(statusCode)")
 
-            // HTTP 200 or 412 indicates the push notification was dispatched to Apple devices!
+            // HTTP 200 or 412 confirms Apple server dispatched the 6-digit pop-up!
             if statusCode == 200 || statusCode == 412 {
-                ContraAuthLog.shared.log("[2FA] ✅ Successfully triggered 2FA push popup to trusted Apple devices!")
+                ContraAuthLog.shared.log(tag: "2FA-PUSH", "✅ Verification code pop-up successfully dispatched to your Apple devices!")
                 return true
             }
 
             Thread.sleep(forTimeInterval: 1.0)
         }
 
-        ContraAuthLog.shared.log("[2FA] ⚠️ Trusted device push endpoint returned non-success. Attempting SMS fallback...")
+        ContraAuthLog.shared.log(tag: "2FA-PUSH", "⚠️ Trusted devices did not acknowledge. Trying SMS fallback...")
         return triggerSMS2FA(dsid: dsid, idmsToken: idmsToken, anisette: anisette)
     }
 
-    /// Triggers SMS OTP verification code as fallback if trusted device push is unavailable
+    /// Triggers SMS OTP verification code as fallback
     private func triggerSMS2FA(
         dsid: String,
         idmsToken: String,
         anisette: [String: String]
     ) -> Bool {
         let identityToken = Data("\(dsid):\(idmsToken)".utf8).base64EncodedString()
-        ContraAuthLog.shared.log("[2FA-SMS] Querying trusted phone numbers...")
+        ContraAuthLog.shared.log(tag: "2FA-PUSH", "Querying trusted phone numbers for SMS verification...")
 
         guard let phoneURL = URL(string: "https://gsa.apple.com/auth/verify/phone") else { return false }
 
@@ -348,14 +386,15 @@ public final class AppleSessionManager: NSObject {
         var phoneID = 1
         let sema = DispatchSemaphore(value: 0)
 
-        URLSession.shared.dataTask(with: getReq) { data, resp, _ in
+        URLSession.shared.dataTask(with: getReq) { data, _, _ in
             if let d = data,
                let json = (try? JSONSerialization.jsonObject(with: d, options: [])) as? [String: Any],
                let phones = json["trustedPhoneNumbers"] as? [[String: Any]],
                let first = phones.first,
                let pid = first["id"] as? Int {
                 phoneID = pid
-                ContraAuthLog.shared.log("[2FA-SMS] Found phone ID: \(phoneID)")
+                let numberWithDialCode = first["numberWithDialCode"] as? String ?? ""
+                ContraAuthLog.shared.log(tag: "2FA-PUSH", "Found trusted phone: \(numberWithDialCode) (id=\(phoneID))")
             }
             sema.signal()
         }.resume()
@@ -379,7 +418,7 @@ public final class AppleSessionManager: NSObject {
 
         URLSession.shared.dataTask(with: putReq) { _, resp, _ in
             if let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) {
-                ContraAuthLog.shared.log("[2FA-SMS] ✅ SMS verification code dispatched!")
+                ContraAuthLog.shared.log(tag: "2FA-PUSH", "✅ SMS verification code sent via carrier!")
                 putSuccess = true
             }
             sema2.signal()
@@ -399,7 +438,7 @@ public final class AppleSessionManager: NSObject {
         anisette: [String: String],
         targetApp: String = "com.apple.gs.xcode.auth"
     ) -> String? {
-        ContraAuthLog.shared.log("[AppToken] Requesting AppToken for '\(targetApp)'...")
+        ContraAuthLog.shared.log(tag: "GSA-HTTP", "Acquiring Xcode developer AppToken for '\(targetApp)'...")
 
         let checksum = ContraCrypto.hmacSHA256(key: sessionKey, strings: ["apptokens", dsid, targetApp])
 
@@ -419,17 +458,122 @@ public final class AppleSessionManager: NSObject {
         do {
             let response = try sendGrandSlamRequest(parameters: params, anisette: anisette)
             guard let encryptedToken = response["et"] as? Data else {
-                ContraAuthLog.shared.log("[AppToken] Missing 'et' in response")
+                ContraAuthLog.shared.log(tag: "GSA-HTTP", "⚠️ No encrypted token 'et' found in apptokens response")
                 return nil
             }
 
             let (token, _) = try ContraSRPClient.decryptAppToken(encryptedToken: encryptedToken, sessionKey: sessionKey, targetApp: targetApp)
-            ContraAuthLog.shared.log("[AppToken] ✅ Successfully decrypted AppToken: \(token.prefix(20))...")
+            ContraAuthLog.shared.log(tag: "GSA-HTTP", "✅ Successfully decrypted Xcode AppToken (myacinfo): \(token.prefix(20))...")
             return token
         } catch {
-            ContraAuthLog.shared.log("[AppToken] Failed to fetch apptoken: \(error.localizedDescription)")
+            ContraAuthLog.shared.log(tag: "GSA-HTTP", "❌ Failed to fetch apptoken: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    // MARK: - Developer Team Resolution (Fortiva Reference)
+
+    private func resolveDeveloperTeams(
+        appleID: String,
+        dsid: String,
+        token: String,
+        anisette: [String: String]
+    ) -> (primaryTeamID: String, primaryTeamName: String, allTeams: [[String: Any]]) {
+        ContraAuthLog.shared.log(tag: "DEV-TEAM", "Querying Apple Developer Portal for registered teams at listTeams.action...")
+
+        guard let listTeamsURL = URL(string: "https://developerservices2.apple.com/services/QH65B2/listTeams.action?clientId=XABBG36SBA") else {
+            return (dsid, "Personal Team (\(appleID))", [])
+        }
+
+        var request = URLRequest(url: listTeamsURL)
+        request.httpMethod = "POST"
+        request.setValue("text/x-xml-plist", forHTTPHeaderField: "Content-Type")
+        request.setValue("text/x-xml-plist", forHTTPHeaderField: "Accept")
+        request.setValue("Xcode", forHTTPHeaderField: "User-Agent")
+        request.setValue("en-us", forHTTPHeaderField: "Accept-Language")
+        request.setValue("com.apple.gs.xcode.auth", forHTTPHeaderField: "X-Apple-App-Info")
+        request.setValue("14.2 (14C18)", forHTTPHeaderField: "X-Xcode-Version")
+        request.setValue(dsid, forHTTPHeaderField: "X-Apple-I-Identity-Id")
+        request.setValue(token, forHTTPHeaderField: "X-Apple-GS-Token")
+        request.setValue("close", forHTTPHeaderField: "Connection")
+
+        if let clientInfo = anisette["X-MMe-Client-Info"] {
+            request.setValue(clientInfo, forHTTPHeaderField: "X-Mme-Client-Info")
+        }
+
+        for (k, v) in anisette {
+            request.setValue(v, forHTTPHeaderField: k)
+        }
+
+        // Standard Apple Developer Portal request body
+        let bodyPlist: [String: Any] = [
+            "clientId": "XABBG36SBA",
+            "myacinfo": token,
+            "protocolVersion": "QH65B2",
+            "requestId": UUID().uuidString.uppercased(),
+            "userLocale": ["en_US"]
+        ]
+
+        request.httpBody = try? PropertyListSerialization.data(fromPropertyList: bodyPlist, format: .xml, options: 0)
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var resultData: Data?
+        var statusCode = 0
+
+        URLSession.shared.dataTask(with: request) { data, resp, _ in
+            resultData = data
+            if let http = resp as? HTTPURLResponse {
+                statusCode = http.statusCode
+            }
+            semaphore.signal()
+        }.resume()
+
+        _ = semaphore.wait(timeout: .now() + 18.0)
+
+        ContraAuthLog.shared.log(tag: "DEV-TEAM", "<- listTeams.action: HTTP \(statusCode)")
+
+        var parsedTeams: [[String: Any]] = []
+
+        if let data = resultData,
+           let plist = (try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)) as? [String: Any] {
+
+            let resultCode = plist["resultCode"] as? Int ?? (plist["resultcode"] as? Int ?? 0)
+            let userString = plist["userString"] as? String ?? ""
+
+            if resultCode != 0 {
+                ContraAuthLog.shared.log(tag: "DEV-TEAM", "Developer API Notice (code \(resultCode)): '\(userString)'")
+            }
+
+            if let rawTeams = plist["teams"] as? [[String: Any]] {
+                for t in rawTeams {
+                    let tid = t["teamId"] as? String ?? ""
+                    let tname = t["name"] as? String ?? ""
+                    let ttype = t["type"] as? String ?? "Individual"
+                    let tstatus = t["status"] as? String ?? "active"
+
+                    ContraAuthLog.shared.log(tag: "DEV-TEAM", "✅ Found Team: '\(tname)' [TeamID: \(tid), Type: \(ttype), Status: \(tstatus)]")
+                    parsedTeams.append([
+                        "teamId": tid,
+                        "name": tname,
+                        "type": ttype,
+                        "status": tstatus
+                    ])
+                }
+            }
+        }
+
+        // Determine primary team
+        if let first = parsedTeams.first, let tid = first["teamId"] as? String, !tid.isEmpty {
+            let tname = first["name"] as? String ?? "Developer Team"
+            ContraAuthLog.shared.log(tag: "DEV-TEAM", "⭐ Selected primary team: '\(tname)' [ID: \(tid)]")
+            return (tid, tname, parsedTeams)
+        }
+
+        // Fallback for Free Developer Apple ID accounts (without enrolled organization team)
+        let fallbackID = dsid.isEmpty ? "Personal" : dsid
+        let fallbackName = "\(appleID) (Personal)"
+        ContraAuthLog.shared.log(tag: "DEV-TEAM", "ℹ️ Free/Personal account detected. Assigning Personal Team [ID: \(fallbackID)]")
+        return (fallbackID, fallbackName, parsedTeams)
     }
 
     // MARK: - Login Flow (Full SRP-6a + 2FA)
@@ -451,15 +595,18 @@ public final class AppleSessionManager: NSObject {
                     return
                 }
 
-                ContraAuthLog.shared.log("Starting authentication for \(sanitizedAppleID)...")
+                ContraAuthLog.shared.clear()
+                ContraAuthLog.shared.log(tag: "AUTH", "==================================================")
+                ContraAuthLog.shared.log(tag: "AUTH", "Starting Authentication session for: \(sanitizedAppleID)")
+                ContraAuthLog.shared.log(tag: "AUTH", "==================================================")
 
-                // 1. Fetch real-time on-device Anisette headers from akd
+                // 1. Fetch on-device Anisette headers
                 let anisette = try self.fetchLocalAnisette()
 
                 // 2. SRP-6a Handshake - Step 1: Init
                 let srp = ContraSRPClient()
                 let clientPublicKeyA = srp.startAuthentication()
-                ContraAuthLog.shared.log("Generated SRP ephemeral key A (256 bytes). Initiating GSA handshake...")
+                ContraAuthLog.shared.log(tag: "SRP-6a", "Generated ephemeral public key A (256-bit prime group RFC 5054). Initiating GrandSlam handshake...")
 
                 let initParams: [String: Any] = [
                     "A2k": clientPublicKeyA,
@@ -475,13 +622,13 @@ public final class AppleSessionManager: NSObject {
                       let salt = initResponse["s"] as? Data,
                       let iterations = initResponse["i"] as? Int,
                       let serverB = initResponse["B"] as? Data else {
-                    ContraAuthLog.shared.log("Invalid SRP init response: missing c/s/i/B")
+                    ContraAuthLog.shared.log(tag: "SRP-6a", "❌ Malformed SRP init response: missing parameters c/s/i/B")
                     throw NSError(domain: "com.kurishu.contrainstalld", code: -3, userInfo: [NSLocalizedDescriptionKey: "Malformed GrandSlam SRP init response."])
                 }
 
                 let sp = (initResponse["sp"] as? String) ?? "s2k"
                 let isS2KFO = (sp == "s2k_fo")
-                ContraAuthLog.shared.log("SRP init OK. Protocol: \(sp), Iterations: \(iterations). Computing client proof M1...")
+                ContraAuthLog.shared.log(tag: "SRP-6a", "Init OK! Protocol: \(sp), Iterations: \(iterations), Salt: \(salt.count) bytes. Computing client proof M1...")
 
                 // 3. Derive password key via PBKDF2 and process challenge
                 guard let derivedKey = srp.derivePasswordKey(password: password, salt: salt, iterations: iterations, isS2KFO: isS2KFO) else {
@@ -492,7 +639,7 @@ public final class AppleSessionManager: NSObject {
                     throw NSError(domain: "com.kurishu.contrainstalld", code: -5, userInfo: [NSLocalizedDescriptionKey: "Failed to compute SRP proof M1."])
                 }
 
-                ContraAuthLog.shared.log("Proof M1 computed. Sending SRP complete request...")
+                ContraAuthLog.shared.log(tag: "SRP-6a", "Proof M1 computed successfully. Sending complete challenge to Apple...")
 
                 // 4. SRP-6a Handshake - Step 2: Complete
                 let completeParams: [String: Any] = [
@@ -510,16 +657,16 @@ public final class AppleSessionManager: NSObject {
                 let hsc = (status["hsc"] as? Int) ?? 0
                 let ec = (status["ec"] as? Int) ?? 0
 
-                ContraAuthLog.shared.log("SRP complete returned. au='\(authType ?? "nil")', hsc=\(hsc), ec=\(ec)")
+                ContraAuthLog.shared.log(tag: "SRP-6a", "Complete challenge response: au='\(authType ?? "nil")', hsc=\(hsc), ec=\(ec)")
 
                 // Decrypt SPD payload
                 var decryptedSPD: DecryptedSPD?
                 if let spdData = completeResponse["spd"] as? Data {
                     do {
                         decryptedSPD = try srp.decryptSPD(spdData)
-                        ContraAuthLog.shared.log("SPD payload decrypted successfully. DSID: \(decryptedSPD?.dsid ?? "nil")")
+                        ContraAuthLog.shared.log(tag: "SRP-6a", "SPD payload decrypted successfully. DSID: \(decryptedSPD?.dsid ?? "nil")")
                     } catch {
-                        ContraAuthLog.shared.log("Failed to decrypt SPD: \(error.localizedDescription)")
+                        ContraAuthLog.shared.log(tag: "SRP-6a", "⚠️ SPD decrypt failed: \(error.localizedDescription)")
                     }
                 }
 
@@ -538,7 +685,7 @@ public final class AppleSessionManager: NSObject {
 
                 // 5. Handle Two-Factor Authentication Requirement
                 if is2FARequired {
-                    ContraAuthLog.shared.log("⚠️ Two-Factor Authentication required by Apple. Triggering verification code push...")
+                    ContraAuthLog.shared.log(tag: "2FA-PUSH", "⚠️ Apple requires Two-Factor Authentication (HSA2/TrustedDevice).")
 
                     // Stash pending context
                     self.pendingTwoFactorContext = Pending2FAContext(
@@ -565,13 +712,12 @@ public final class AppleSessionManager: NSObject {
                 // 6. Direct success without 2FA
                 var sessionToken: String?
 
-                // Check if xcode token is already present in decrypted SPD dictionary
                 if let rawSPD = decryptedSPD?.rawDictionary,
                    let tokens = rawSPD["t"] as? [String: Any],
                    let xcodeTokenDict = tokens["com.apple.gs.xcode.auth"] as? [String: Any],
                    let tok = xcodeTokenDict["token"] as? String {
                     sessionToken = tok
-                    ContraAuthLog.shared.log("Found existing Xcode token in SPD payload.")
+                    ContraAuthLog.shared.log(tag: "GSA-HTTP", "Found pre-existing Xcode token in SPD payload")
                 }
 
                 if sessionToken == nil, let sk = srp.sessionKey(), !dsid.isEmpty, !idmsToken.isEmpty {
@@ -584,21 +730,30 @@ public final class AppleSessionManager: NSObject {
                     )
                 }
 
-                let token = sessionToken ?? UUID().uuidString
-                let teamInfo = self.resolveTeamInfo(dsid: dsid, token: token, anisette: anisette)
+                let finalToken = sessionToken ?? UUID().uuidString
+
+                // 7. Resolve Developer Teams & Team ID
+                let teamResolution = self.resolveDeveloperTeams(
+                    appleID: sanitizedAppleID,
+                    dsid: dsid,
+                    token: finalToken,
+                    anisette: anisette
+                )
 
                 self.saveSession(
                     appleID: sanitizedAppleID,
                     dsid: dsid,
-                    token: token,
-                    teamID: teamInfo.teamID,
-                    teamName: teamInfo.teamName
+                    token: finalToken,
+                    teamID: teamResolution.primaryTeamID,
+                    teamName: teamResolution.primaryTeamName,
+                    teams: teamResolution.allTeams
                 )
 
-                ContraAuthLog.shared.log("✅ Authenticated successfully as \(sanitizedAppleID) (Team: \(teamInfo.teamName ?? "N/A"))")
-                completion(false, "Successfully authenticated as \(sanitizedAppleID).", nil)
+                let successMsg = "Successfully authenticated as \(sanitizedAppleID)\n  Team: \(teamResolution.primaryTeamName) [ID: \(teamResolution.primaryTeamID)]"
+                ContraAuthLog.shared.log(tag: "AUTH", "🎉 \(successMsg)")
+                completion(false, successMsg, nil)
             } catch {
-                ContraAuthLog.shared.log("❌ Authentication failed with error: \(error.localizedDescription)")
+                ContraAuthLog.shared.log(tag: "AUTH", "❌ Authentication error: \(error.localizedDescription)")
                 completion(false, nil, error)
             }
         }
@@ -627,10 +782,8 @@ public final class AppleSessionManager: NSObject {
                 return
             }
 
-            ContraAuthLog.shared.log("Validating 2FA verification code with Apple GrandSlam...")
+            ContraAuthLog.shared.log(tag: "2FA-CODE", "Validating 6-digit verification code with Apple GrandSlam...")
 
-            // Build headers as per Fortiva / isideload specification:
-            // GET /grandslam/GsService2/validate with header 'security-code: <code>'
             let identityToken = Data("\(context.dsid):\(context.idmsToken)".utf8).base64EncodedString()
             let validateURL = URL(string: "https://gsa.apple.com/grandslam/GsService2/validate")!
 
@@ -670,13 +823,13 @@ public final class AppleSessionManager: NSObject {
             _ = semaphore.wait(timeout: .now() + 30.0)
 
             if let err = responseError {
-                ContraAuthLog.shared.log("[2FA Validate] Network error: \(err.localizedDescription)")
+                ContraAuthLog.shared.log(tag: "2FA-CODE", "❌ Network error: \(err.localizedDescription)")
                 completion(false, nil, err)
                 return
             }
 
             let statusCode = httpResponse?.statusCode ?? 0
-            ContraAuthLog.shared.log("[2FA Validate] HTTP \(statusCode)")
+            ContraAuthLog.shared.log(tag: "2FA-CODE", "<- /grandslam/GsService2/validate: HTTP \(statusCode)")
 
             var ec = -1
             if let data = responseData,
@@ -684,27 +837,27 @@ public final class AppleSessionManager: NSObject {
                let resp = plist["Response"] as? [String: Any],
                let status = resp["Status"] as? [String: Any] {
                 ec = status["ec"] as? Int ?? -1
-                ContraAuthLog.shared.log("[2FA Validate] Response ec=\(ec)")
+                let em = status["em"] as? String ?? ""
+                ContraAuthLog.shared.log(tag: "2FA-CODE", "Validation status: ec=\(ec), em='\(em)'")
             }
 
             let isValid = (statusCode == 200 || statusCode == 204) && (ec == 0 || ec == -1)
 
             guard isValid else {
-                ContraAuthLog.shared.log("❌ 2FA validation failed: HTTP \(statusCode), ec=\(ec)")
+                ContraAuthLog.shared.log(tag: "2FA-CODE", "❌ 2FA verification failed (HTTP \(statusCode), ec=\(ec))")
                 completion(false, nil, NSError(
                     domain: "com.kurishu.contrainstalld",
                     code: 401,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid 2FA verification code. Please check the code and try again."]
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid 2FA verification code. Please check your devices and try again."]
                 ))
                 return
             }
 
-            ContraAuthLog.shared.log("✅ 2FA code verified successfully!")
+            ContraAuthLog.shared.log(tag: "2FA-CODE", "✅ 2FA code verified successfully!")
 
-            // Step 2: Now that 2FA is validated, acquire session token
+            // Step 2: Acquire session token (AppToken)
             var token: String? = nil
 
-            // Try requesting apptokens with existing session key
             if let sk = context.sessionKey, !context.dsid.isEmpty, !context.idmsToken.isEmpty {
                 token = self.fetchAppToken(
                     dsid: context.dsid,
@@ -715,9 +868,9 @@ public final class AppleSessionManager: NSObject {
                 )
             }
 
-            // Fallback: Re-authenticate to obtain fresh session key & token now that 2FA is cleared (Fortiva strategy)
+            // Fallback: Re-authenticate via SRP to retrieve fresh session token (Fortiva strategy)
             if token == nil {
-                ContraAuthLog.shared.log("Re-authenticating via SRP to retrieve updated session token...")
+                ContraAuthLog.shared.log(tag: "AUTH", "Re-authenticating via SRP to retrieve updated session token...")
                 self.login(appleID: context.appleID, password: context.password) { success, msg, err in
                     self.pendingTwoFactorContext = nil
                     completion(success, msg, err)
@@ -726,81 +879,42 @@ public final class AppleSessionManager: NSObject {
             }
 
             let finalToken = token ?? UUID().uuidString
-            let teamInfo = self.resolveTeamInfo(dsid: context.dsid, token: finalToken, anisette: context.anisetteHeaders)
+
+            // Step 3: Resolve Developer Teams & Team ID
+            let teamResolution = self.resolveDeveloperTeams(
+                appleID: context.appleID,
+                dsid: context.dsid,
+                token: finalToken,
+                anisette: context.anisetteHeaders
+            )
 
             self.saveSession(
                 appleID: context.appleID,
                 dsid: context.dsid,
                 token: finalToken,
-                teamID: teamInfo.teamID,
-                teamName: teamInfo.teamName
+                teamID: teamResolution.primaryTeamID,
+                teamName: teamResolution.primaryTeamName,
+                teams: teamResolution.allTeams
             )
 
             self.pendingTwoFactorContext = nil
-            ContraAuthLog.shared.log("✅ Successfully authenticated after 2FA as \(context.appleID)")
-            completion(true, "Successfully authenticated as \(context.appleID).", nil)
+            let successMsg = "Successfully authenticated as \(context.appleID)\n  Team: \(teamResolution.primaryTeamName) [ID: \(teamResolution.primaryTeamID)]"
+            ContraAuthLog.shared.log(tag: "AUTH", "🎉 \(successMsg)")
+            completion(true, successMsg, nil)
         }
-    }
-
-    // MARK: - Developer Team Resolution
-
-    private func resolveTeamInfo(dsid: String, token: String, anisette: [String: String]) -> (teamID: String?, teamName: String?) {
-        guard let listTeamsURL = URL(string: "https://developerservices2.apple.com/services/QH65B2/listTeams.action?clientId=XABBG36SBA") else {
-            return (nil, nil)
-        }
-
-        ContraAuthLog.shared.log("Querying Developer Portal teams at listTeams.action...")
-
-        var request = URLRequest(url: listTeamsURL)
-        request.httpMethod = "POST"
-        request.setValue("text/x-xml-plist", forHTTPHeaderField: "Content-Type")
-        request.setValue("text/x-xml-plist", forHTTPHeaderField: "Accept")
-        request.setValue("com.apple.gs.xcode.auth", forHTTPHeaderField: "X-Apple-App-Info")
-        request.setValue("14.2 (14C18)", forHTTPHeaderField: "X-Xcode-Version")
-        request.setValue(dsid, forHTTPHeaderField: "X-Apple-I-Identity-Id")
-        request.setValue(token, forHTTPHeaderField: "X-Apple-GS-Token")
-
-        for (k, v) in anisette {
-            request.setValue(v, forHTTPHeaderField: k)
-        }
-
-        let bodyPlist: [String: Any] = [
-            "clientId": "XABBG36SBA",
-            "protocolVersion": "QH65B2",
-            "requestId": UUID().uuidString.uppercased(),
-            "userLocale": ["en_US"]
-        ]
-
-        request.httpBody = try? PropertyListSerialization.data(fromPropertyList: bodyPlist, format: .xml, options: 0)
-
-        let semaphore = DispatchSemaphore(value: 0)
-        var resultData: Data?
-
-        URLSession.shared.dataTask(with: request) { data, _, _ in
-            resultData = data
-            semaphore.signal()
-        }.resume()
-
-        _ = semaphore.wait(timeout: .now() + 15.0)
-
-        guard let data = resultData,
-              let plist = (try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)) as? [String: Any],
-              let teams = plist["teams"] as? [[String: Any]],
-              let firstTeam = teams.first else {
-            ContraAuthLog.shared.log("No teams returned from Developer Portal.")
-            return (nil, nil)
-        }
-
-        let teamID = firstTeam["teamId"] as? String
-        let teamName = firstTeam["name"] as? String
-        ContraAuthLog.shared.log("Team found: '\(teamName ?? "")' (ID: \(teamID ?? ""))")
-        return (teamID, teamName)
     }
 
     // MARK: - Session Persistence
 
-    private func saveSession(appleID: String, dsid: String, token: String, teamID: String?, teamName: String?) {
-        let sessionData: [String: Any] = [
+    private func saveSession(
+        appleID: String,
+        dsid: String,
+        token: String,
+        teamID: String?,
+        teamName: String?,
+        teams: [[String: Any]] = []
+    ) {
+        var sessionData: [String: Any] = [
             "appleID": appleID,
             "dsid": dsid,
             "token": token,
@@ -809,12 +923,16 @@ public final class AppleSessionManager: NSObject {
             "savedDate": ISO8601DateFormatter().string(from: Date())
         ]
 
+        if !teams.isEmpty {
+            sessionData["teams"] = teams
+        }
+
         do {
             let data = try PropertyListSerialization.data(fromPropertyList: sessionData, format: .xml, options: 0)
             try data.write(to: self.sessionFileURL, options: .atomic)
-            ContraAuthLog.shared.log("Session saved to \(self.sessionFileURL.path)")
+            ContraAuthLog.shared.log(tag: "SESSION", "Credentials and Team ID successfully persisted to session.plist")
         } catch {
-            ContraAuthLog.shared.log("Failed to save session plist: \(error.localizedDescription)")
+            ContraAuthLog.shared.log(tag: "SESSION", "❌ Failed to save session plist: \(error.localizedDescription)")
         }
     }
 
@@ -831,15 +949,16 @@ public final class AppleSessionManager: NSObject {
     }
 
     public func logout() -> Bool {
-        ContraAuthLog.shared.log("Logging out. Removing stored session...")
+        ContraAuthLog.shared.log(tag: "SESSION", "Signing out. Removing active session credentials...")
         pendingTwoFactorContext = nil
         do {
             if FileManager.default.fileExists(atPath: sessionFileURL.path) {
                 try FileManager.default.removeItem(at: sessionFileURL)
             }
+            ContraAuthLog.shared.log(tag: "SESSION", "Session removed successfully.")
             return true
         } catch {
-            ContraAuthLog.shared.log("Failed to remove session file: \(error.localizedDescription)")
+            ContraAuthLog.shared.log(tag: "SESSION", "Failed to remove session file: \(error.localizedDescription)")
             return false
         }
     }
