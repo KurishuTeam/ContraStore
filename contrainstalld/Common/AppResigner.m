@@ -32,9 +32,25 @@ extern char **environ;
     return nil;
 }
 
++ (const char *)findLdidPath {
+    const char *candidates[] = {
+        ROOT_PATH("/usr/bin/ldid"),
+        "/var/jb/usr/bin/ldid",
+        "/usr/bin/ldid",
+        ROOT_PATH("/usr/local/bin/ldid"),
+        "/usr/local/bin/ldid"
+    };
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        if (access(candidates[i], X_OK) == 0) {
+            return candidates[i];
+        }
+    }
+    return NULL;
+}
+
 + (BOOL)resignAppBundleAtPath:(NSString *)bundlePath withEntitlements:(NSString *)entitlementsPath error:(NSError **)error {
-    const char *ldidPath = ROOT_PATH("/usr/bin/ldid");
-    if (access(ldidPath, X_OK) != 0) {
+    const char *ldidPath = [self findLdidPath];
+    if (!ldidPath) {
         if (error) *error = [self errorWithCode:404 message:@"ldid not found. Please install ldid from Sileo/Zebra."];
         return NO;
     }
@@ -92,7 +108,11 @@ extern char **environ;
 }
 
 + (NSString *)extractEntitlementsFromPath:(NSString *)targetPath error:(NSError **)error {
-    const char *ldidPath = ROOT_PATH("/usr/bin/ldid");
+    const char *ldidPath = [self findLdidPath];
+    if (!ldidPath) {
+        if (error) *error = [self errorWithCode:404 message:@"ldid not found for entitlement extraction."];
+        return nil;
+    }
     
     int pipefd[2];
     if (pipe(pipefd) != 0) {

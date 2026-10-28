@@ -71,10 +71,87 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
             return
         }
         
-        
         let res = getAppIconData(forPath: bundlePath)
-        
         reply(res)
+    }
+
+    // MARK: - Apple ID & Authentication (GhostSign / Fortiva Engine)
+
+    func loginAppleID(_ appleID: String, password: String, withReply reply: @escaping (Bool, String?, Error?) -> Void) {
+        AppleSessionManager.shared.login(appleID: appleID, password: password) { requires2FA, message, error in
+            reply(requires2FA, message, error)
+        }
+    }
+
+    func submit2FACode(_ code: String, withReply reply: @escaping (Bool, String?, Error?) -> Void) {
+        AppleSessionManager.shared.submit2FACode(code: code) { success, message, error in
+            reply(success, message, error)
+        }
+    }
+
+    func getAccountStatus(withReply reply: @escaping ([String: Any]?, Error?) -> Void) {
+        let status = AppleSessionManager.shared.getAccountStatus()
+        reply(status, nil)
+    }
+
+    func logout(withReply reply: @escaping (Bool, Error?) -> Void) {
+        let success = AppleSessionManager.shared.logout()
+        reply(success, nil)
+    }
+
+    func testAnisette(withReply reply: @escaping ([String: String]?, Error?) -> Void) {
+        do {
+            let headers = try AppleSessionManager.shared.fetchLocalAnisette()
+            reply(headers, nil)
+        } catch {
+            reply(nil, error)
+        }
+    }
+
+    func resignIPA(atPath ipaPath: String, outputPath: String?, adhoc: Bool, withReply reply: @escaping (String?, Error?) -> Void) {
+        installerQueue.async {
+            do {
+                let sourceURL = URL(fileURLWithPath: ipaPath).standardizedFileURL
+                guard sourceURL.pathExtension.lowercased() == "ipa",
+                      FileManager.default.fileExists(atPath: sourceURL.path) else {
+                    throw InstallationError.invalidSourceFile
+                }
+
+                let stagedDirURL = try self.createStagingDirectory(for: sourceURL)
+                defer { self.cleanupDirectory(at: stagedDirURL) }
+
+                try self.stageAndExtractIPA(from: sourceURL, to: stagedDirURL)
+                let stagedAppURL = try self.locateAppBundle(in: stagedDirURL)
+
+                try self.resignStagedApp(at: stagedAppURL)
+
+                let destinationURL: URL
+                if let out = outputPath, !out.isEmpty {
+                    destinationURL = URL(fileURLWithPath: out).standardizedFileURL
+                } else {
+                    let parent = sourceURL.deletingLastPathComponent()
+                    let baseName = sourceURL.deletingPathExtension().lastPathComponent
+                    destinationURL = parent.appendingPathComponent("\(baseName)-resigned.ipa")
+                }
+
+                if FileManager.default.fileExists(atPath: destinationURL.path) {
+                    try? FileManager.default.removeItem(at: destinationURL)
+                }
+
+                // Repack payload to destination IPA using zip
+                let payloadURL = stagedDirURL.appendingPathComponent("Payload")
+                if FileManager.default.fileExists(atPath: payloadURL.path) {
+                    let zipSuccess = ZIPManager.shared.zipDirectory(at: stagedDirURL, to: destinationURL)
+                    if !zipSuccess {
+                        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                    }
+                }
+
+                reply(destinationURL.path, nil)
+            } catch {
+                reply(nil, error)
+            }
+        }
     } 
         
         
