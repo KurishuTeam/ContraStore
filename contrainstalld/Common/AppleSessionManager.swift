@@ -76,7 +76,7 @@ public final class AppleSessionManager: NSObject {
         }
 
         let headersSel = NSSelectorFromString("appleIDHeadersForRequest:")
-        var headers = (session?.perform(headersSel, with: nil)?.takeUnretainedValue() as? [String: String]) ?? [:]
+        var headers = (session.perform(headersSel, with: nil)?.takeUnretainedValue() as? [String: String]) ?? [:]
 
         // Hardware device identifiers via AKDevice
         if let devClass = NSClassFromString("AKDevice") as? NSObject.Type {

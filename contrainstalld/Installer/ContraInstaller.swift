@@ -138,37 +138,12 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
                     try? FileManager.default.removeItem(at: destinationURL)
                 }
 
-                // Repack payload using zip executable or fallback copy
+                // Repack payload using posix_spawn zip or fallback copy
                 let payloadURL = stagedDirURL.appendingPathComponent("Payload")
                 if FileManager.default.fileExists(atPath: payloadURL.path) {
-                    let zipPaths = [jbPath("/usr/bin/zip"), "/var/jb/usr/bin/zip", "/usr/bin/zip"]
-                    var zipped = false
-                    for zPath in zipPaths {
-                        if FileManager.default.isExecutableFile(atPath: zPath) {
-                            let pid = fork()
-                            if pid == 0 {
-                                chdir(stagedDirURL.path)
-                                let destStr = destinationURL.path
-                                let zStr = zPath
-                                var cArgs: [UnsafeMutablePointer<CChar>?] = [
-                                    strdup(zStr),
-                                    strdup("-qr"),
-                                    strdup(destStr),
-                                    strdup("Payload"),
-                                    nil
-                                ]
-                                execv(zStr, &cArgs)
-                                _exit(1)
-                            }
-                            var status: Int32 = 0
-                            waitpid(pid, &status, 0)
-                            if (status & 0x7F) == 0 && ((status >> 8) & 0xFF) == 0 {
-                                zipped = true
-                                break
-                            }
-                        }
-                    }
-                    if !zipped {
+                    do {
+                        try AppResigner.repackPayload(atDirectory: stagedDirURL.path, toIPA: destinationURL.path)
+                    } catch {
                         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
                     }
                 }
