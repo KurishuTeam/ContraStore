@@ -202,4 +202,37 @@ public class DatabaseManager: NSObject {
         
         return success
     }
+
+    @discardableResult
+    public func deleteApp(bundleID: String) -> Bool {
+        var success = false
+
+        dbQueue.sync {
+            guard let db = db else { return }
+
+            let query = "DELETE FROM apps WHERE bundleID = ?;"
+            var stmt: OpaquePointer? = nil
+            guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
+                let err = String(cString: sqlite3_errmsg(db))
+                print("[DatabaseManager] Failed to prepare delete statement: \(err)")
+                return
+            }
+
+            defer {
+                sqlite3_finalize(stmt)
+            }
+
+            bundleID.withCString { sqlite3_bind_text(stmt, 1, $0, -1, sqliteTransient) }
+
+            if sqlite3_step(stmt) == SQLITE_DONE {
+                success = true
+                print("[DatabaseManager] Successfully deleted app: \(bundleID)")
+            } else {
+                let err = String(cString: sqlite3_errmsg(db))
+                print("[DatabaseManager] Failed to execute delete: \(err)")
+            }
+        }
+
+        return success
+    }
 }

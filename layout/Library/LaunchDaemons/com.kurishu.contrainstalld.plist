@@ -12,6 +12,13 @@
     <true/>
     <key>KeepAlive</key>
     <true/>
+    <key>MachServices</key>
+    <dict>
+        <key>com.kurishu.contrainstalld</key>
+        <true/>
+    </dict>
+    <key>UserName</key>
+    <string>root</string>
     <key>StandardOutPath</key>
     <string>/var/log/contrainstalld.log</string>
     <key>StandardErrorPath</key>

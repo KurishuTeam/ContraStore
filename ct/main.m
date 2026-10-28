@@ -117,14 +117,16 @@ static void printUsage(const char *progName) {
     printf("%sUSAGE:%s\n", colBold(), colReset());
     printf("  %s <command> [options] [arguments]\n\n", progName);
     printf("%sCOMMANDS:%s\n", colBold(), colReset());
-    printf("  %sinstall%s <path.ipa> [more.ipa...]  Install one or more IPA packages\n", colGreen(), colReset());
-    printf("  %slist%s, %sls%s                           List all applications managed by ContraStore\n", colGreen(), colReset(), colGreen(), colReset());
-    printf("  %sinfo%s, %spaths%s <bundle-id>            Inspect container and redirect paths for an app\n", colGreen(), colReset(), colGreen(), colReset());
-    printf("  %sversion%s, %s-v%s, %s--version%s          Show version information\n", colGreen(), colReset(), colGreen(), colReset(), colGreen(), colReset());
-    printf("  %shelp%s, %s-h%s, %s--help%s                Show this help message\n\n", colGreen(), colReset(), colGreen(), colReset(), colGreen(), colReset());
+    printf("  %sinstall%s <path.ipa> [more.ipa...]       Install one or more IPA packages\n", colGreen(), colReset());
+    printf("  %suninstall%s, %srm%s <bundle-id> [more...]     Uninstall an application by bundle identifier\n", colGreen(), colReset(), colGreen(), colReset());
+    printf("  %slist%s, %sls%s                                List all applications managed by ContraStore\n", colGreen(), colReset(), colGreen(), colReset());
+    printf("  %sinfo%s, %spaths%s <bundle-id>                 Inspect container and redirect paths for an app\n", colGreen(), colReset(), colGreen(), colReset());
+    printf("  %sversion%s, %s-v%s, %s--version%s               Show version information\n", colGreen(), colReset(), colGreen(), colReset(), colGreen(), colReset());
+    printf("  %shelp%s, %s-h%s, %s--help%s                     Show this help message\n\n", colGreen(), colReset(), colGreen(), colReset(), colGreen(), colReset());
     printf("%sEXAMPLES:%s\n", colBold(), colReset());
     printf("  %s install MyApp.ipa\n", progName);
     printf("  %s install *.ipa\n", progName);
+    printf("  %s uninstall com.example.app\n", progName);
     printf("  %s list\n", progName);
     printf("  %s info com.example.app\n\n", progName);
 }
@@ -206,6 +208,62 @@ static int cmdInstall(int argc, char *argv[]) {
 
     if (totalFiles > 1) {
         printf("\n%sSummary:%s %d succeeded, %d failed.\n",
+               colBold(),
+               colReset(),
+               successCount,
+               failureCount);
+    }
+
+    return (failureCount == 0) ? 0 : 1;
+}
+
+static int cmdUninstall(int argc, char *argv[]) {
+    if (argc < 3) {
+        fprintf(stderr, "%s[-] Error:%s Missing bundle identifier.\n", colRed(), colReset());
+        fprintf(stderr, "Usage: %s uninstall <bundle-id> [more-bundle-ids...]\n", argv[0]);
+        return 1;
+    }
+
+    int total = argc - 2;
+    int successCount = 0;
+    int failureCount = 0;
+
+    for (int i = 2; i < argc; i++) {
+        NSString *bundleId = [NSString stringWithUTF8String:argv[i]];
+        NSString *spinnerText = [NSString stringWithFormat:@"Uninstalling %@", bundleId];
+
+        if (total > 1) {
+            printf("%s[%d/%d]%s %s%s%s\n", colBold(), (i - 1), total, colReset(), colCyan(), bundleId.UTF8String, colReset());
+        }
+
+        int status = runAsyncWithSpinner(spinnerText, 60.0, ^(void (^done)(int code)) {
+            [[ContraXPCClient sharedClient] uninstallAppWithBundleID:bundleId completion:^(NSError * _Nullable error) {
+                if (error) {
+                    fprintf(stderr, "%s[-] Failed to uninstall %s:%s %s\n",
+                            colRed(),
+                            bundleId.UTF8String,
+                            colReset(),
+                            error.localizedDescription.UTF8String ?: "Unknown error");
+                    done(1);
+                } else {
+                    printf("%s[+] Successfully uninstalled:%s %s\n",
+                           colGreen(),
+                           colReset(),
+                           bundleId.UTF8String);
+                    done(0);
+                }
+            }];
+        });
+
+        if (status == 0) {
+            successCount++;
+        } else {
+            failureCount++;
+        }
+    }
+
+    if (total > 1) {
+        printf("\n%sSummary:%s %d uninstalled, %d failed.\n",
                colBold(),
                colReset(),
                successCount,
@@ -322,6 +380,8 @@ int main(int argc, char *argv[]) {
 
         if ([subcommand isEqualToString:@"install"]) {
             return cmdInstall(argc, argv);
+        } else if ([subcommand isEqualToString:@"uninstall"] || [subcommand isEqualToString:@"remove"] || [subcommand isEqualToString:@"rm"]) {
+            return cmdUninstall(argc, argv);
         } else if ([subcommand isEqualToString:@"list"] || [subcommand isEqualToString:@"ls"]) {
             return cmdList();
         } else if ([subcommand isEqualToString:@"info"] || [subcommand isEqualToString:@"paths"]) {
