@@ -313,60 +313,6 @@ static int cmdAuthLog(void) {
     return 0;
 }
 
-    const char *spinnerChars[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
-    const int spinnerCount = sizeof(spinnerChars) / sizeof(spinnerChars[0]);
-    int frame = 0;
-
-    if (!gIsTTY && message) {
-        printf("[*] %s\n", message.UTF8String);
-        fflush(stdout);
-    }
-
-    work(^(int code) {
-        resultExitCode = code;
-        isDone = YES;
-    });
-
-    NSTimeInterval startTime = [NSDate timeIntervalSinceReferenceDate];
-
-    while (!isDone && !gInterrupted) {
-        @autoreleasepool {
-            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
-                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.08]];
-        }
-
-        NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - startTime;
-
-        if (timeout > 0 && elapsed > timeout) {
-            if (gIsTTY) {
-                printf("\r\033[K");
-            }
-            fprintf(stderr, "%s[-] Error:%s Operation timed out after %.0fs.\n", colRed(), colReset(), timeout);
-            return 1;
-        }
-
-        if (gIsTTY && message && !isDone) {
-            printf("\r\033[K%s[%s]%s %s %s(%.1fs)%s",
-                   colCyan(),
-                   spinnerChars[frame % spinnerCount],
-                   colReset(),
-                   message.UTF8String,
-                   colGray(),
-                   elapsed,
-                   colReset());
-            fflush(stdout);
-            frame++;
-        }
-    }
-
-    if (gIsTTY && message) {
-        printf("\r\033[K");
-        fflush(stdout);
-    }
-
-    return resultExitCode;
-}
-
 #pragma mark - Commands Implementation
 
 static void printUsage(const char *progName) {
