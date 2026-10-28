@@ -3,5 +3,5 @@
 
 #import "zip.h"
 #import "uicache.h"
-#import "AppResigner.m"
+#import "AppResigner.h"
 #import "ContraInstallerProtocol.h"
