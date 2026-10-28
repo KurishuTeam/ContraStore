@@ -1,5 +1,9 @@
 #import "ContraXPCClient.h"
 
+#ifndef NSXPCConnectionPrivileged
+#define NSXPCConnectionPrivileged (1UL << 12)
+#endif
+
 @interface NSXPCConnection (Private)
 - (instancetype)initWithMachServiceName:(NSString *)name options:(NSXPCConnectionOptions)options;
 @end
@@ -29,7 +33,7 @@
     __block NSXPCConnection *conn = nil;
     dispatch_sync(_lockQueue, ^{
         if (!self->_connection) {
-            self->_connection = [[NSXPCConnection alloc] initWithMachServiceName:@"com.kurishu.contrainstalld" options:0];
+            self->_connection = [[NSXPCConnection alloc] initWithMachServiceName:@"com.kurishu.contrainstalld" options:NSXPCConnectionPrivileged];
             self->_connection.remoteObjectInterface = [NSXPCInterface interfaceWithProtocol:@protocol(ContraInstallerProtocol)];
             
             typeof(self) weakSelf = self;
@@ -40,6 +44,9 @@
                         strongSelf->_connection = nil;
                     });
                 }
+            };
+            self->_connection.interruptionHandler = ^{
+                NSLog(@"[ContraXPC] Connection interrupted.");
             };
             [self->_connection resume];
         }
@@ -58,6 +65,20 @@
     [proxy installIpaAtPath:ipaPath withReply:^(NSError * _Nullable installError) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (completion) completion(installError);
+        });
+    }];
+}
+
+- (void)uninstallAppWithBundleID:(NSString *)bundleID completion:(void (^)(NSError * _Nullable error))completion {
+    id<ContraInstallerProtocol> proxy = [[self connection] remoteObjectProxyWithErrorHandler:^(NSError * _Nonnull xpcError) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(xpcError);
+        });
+    }];
+    
+    [proxy uninstallAppWithBundleId:bundleID withReply:^(NSError * _Nullable uninstallError) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(uninstallError);
         });
     }];
 }

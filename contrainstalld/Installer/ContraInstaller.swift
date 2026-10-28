@@ -8,6 +8,7 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         case payloadNotFound
         case appBundleNotFound
         case bundleIdentifierNotFound
+        case appNotInstalled
         
         var errorDescription: String? {
             switch self {
@@ -19,6 +20,8 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
                 return "App bundle (.app) doesn't exist."
             case .bundleIdentifierNotFound:
                 return "App bundle identifier could not be found."
+            case .appNotInstalled:
+                return "The application is not installed."
             }
         }
     }
@@ -30,6 +33,17 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         installerQueue.async {
             do {
                 try self.performInstallation(atPath: path)
+                reply(nil)
+            } catch {
+                reply(error)
+            }
+        }
+    }
+
+    func uninstallApp(withBundleId bundleId: String, withReply reply: @escaping (Error?) -> Void) {
+        installerQueue.async {
+            do {
+                try self.performUninstallation(bundleId: bundleId)
                 reply(nil)
             } catch {
                 reply(error)
@@ -84,9 +98,32 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         
         let appInfo = try registerOrUpdateAppInDatabase(bundleID: bundleID, installedAppURL: installedAppURL, existingInfo: existingAppInfo)
         
-        try 
+        try createStandardAppDirectories(with: appInfo)
         
         refreshIconCache(for: installedAppURL)
+    }
+
+    private func performUninstallation(bundleId: String) throws {
+        guard let appInfo = DatabaseManager.shared.getAppInfo(forBundleID: bundleId) else {
+            throw InstallationError.appNotInstalled
+        }
+
+        let fileManager = FileManager.default
+
+        if let systemBundlePath = appInfo["systemBundlePath"] {
+            systemBundlePath.withCString { path in
+                uicache_unregister(path)
+            }
+            if fileManager.fileExists(atPath: systemBundlePath) {
+                try? fileManager.removeItem(atPath: systemBundlePath)
+            }
+        }
+
+        if let systemDataPath = appInfo["systemDataPath"], fileManager.fileExists(atPath: systemDataPath) {
+            try? fileManager.removeItem(atPath: systemDataPath)
+        }
+
+        DatabaseManager.shared.deleteApp(bundleID: bundleId)
     }
     
     
