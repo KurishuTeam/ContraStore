@@ -23,6 +23,121 @@ static inline const char *colYellow(void) { return gIsTTY ? "\033[1;33m" : ""; }
 static inline const char *colCyan(void)   { return gIsTTY ? "\033[1;36m" : ""; }
 static inline const char *colGray(void)   { return gIsTTY ? "\033[90m" : ""; }
 
+#pragma mark - Signal Handling
+
+static volatile sig_atomic_t gInterrupted = 0;
+
+static void handleSignal(int sig) {
+    (void)sig;
+    gInterrupted = 1;
+    if (gIsTTY) {
+        fprintf(stderr, "\r\033[K\n%s[!] Operation interrupted by user.%s\n", colYellow(), colReset());
+    } else {
+        fprintf(stderr, "\nOperation interrupted by user.\n");
+    }
+    _exit(130);
+}
+
+static void setupSignalHandlers(void) {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handleSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+}
+
+#pragma mark - RunLoop Event Pump (Async XPC Execution)
+
+// Pump main runloop to process XPC reply handlers dispatched to main queue
+typedef void (^CTAsyncWorkBlock)(void (^doneBlock)(int exitCode));
+
+static int runAsyncWithSpinner(NSString *message, NSTimeInterval timeout, CTAsyncWorkBlock work) {
+    __block BOOL isDone = NO;
+    __block int resultExitCode = 0;
+
+    const char *spinnerChars[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
+    const int spinnerCount = sizeof(spinnerChars) / sizeof(spinnerChars[0]);
+    int frame = 0;
+
+    if (!gIsTTY && message) {
+        printf("[*] %s\n", message.UTF8String);
+        fflush(stdout);
+    }
+
+    work(^(int code) {
+        resultExitCode = code;
+        isDone = YES;
+    });
+
+    NSTimeInterval startTime = [NSDate timeIntervalSinceReferenceDate];
+
+    while (!isDone && !gInterrupted) {
+        @autoreleasepool {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.08]];
+        }
+
+        NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - startTime;
+
+        if (timeout > 0 && elapsed > timeout) {
+            if (gIsTTY) {
+                printf("\r\033[K");
+            }
+            fprintf(stderr, "%s[-] Error:%s Operation timed out after %.0fs.\n", colRed(), colReset(), timeout);
+            return 1;
+        }
+
+        if (gIsTTY && message && !isDone) {
+            printf("\r\033[K%s[%s]%s %s %s(%.1fs)%s",
+                   colCyan(),
+                   spinnerChars[frame % spinnerCount],
+                   colReset(),
+                   message.UTF8String,
+                   colGray(),
+                   elapsed,
+                   colReset());
+            fflush(stdout);
+            frame++;
+        }
+    }
+
+    if (gIsTTY && message) {
+        printf("\r\033[K");
+        fflush(stdout);
+    }
+
+    return resultExitCode;
+}
+
+static int runAsyncWithDirectWait(NSTimeInterval timeout, CTAsyncWorkBlock work) {
+    __block BOOL isDone = NO;
+    __block int resultExitCode = 0;
+
+    work(^(int code) {
+        resultExitCode = code;
+        isDone = YES;
+    });
+
+    NSTimeInterval startTime = [NSDate timeIntervalSinceReferenceDate];
+
+    while (!isDone && !gInterrupted) {
+        @autoreleasepool {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        }
+
+        NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - startTime;
+        if (timeout > 0 && elapsed > timeout) {
+            fprintf(stderr, "%s[-] Error:%s Operation timed out after %.0fs.\n", colRed(), colReset(), timeout);
+            return 1;
+        }
+    }
+
+    return resultExitCode;
+}
+
 #pragma mark - Realtime Log Tailer & Colored Formatting
 
 static const char *getAuthLogFilePath(void) {
@@ -145,33 +260,6 @@ static void stopRealtimeLogTailer(void) {
     }
 }
 
-static int runAsyncWithDirectWait(NSTimeInterval timeout, CTAsyncWorkBlock work) {
-    __block BOOL isDone = NO;
-    __block int resultExitCode = 0;
-
-    work(^(int code) {
-        resultExitCode = code;
-        isDone = YES;
-    });
-
-    NSTimeInterval startTime = [NSDate timeIntervalSinceReferenceDate];
-
-    while (!isDone && !gInterrupted) {
-        @autoreleasepool {
-            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
-                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
-        }
-
-        NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - startTime;
-        if (timeout > 0 && elapsed > timeout) {
-            fprintf(stderr, "%s[-] Error:%s Operation timed out after %.0fs.\n", colRed(), colReset(), timeout);
-            return 1;
-        }
-    }
-
-    return resultExitCode;
-}
-
 static void printAccountSuccessCard(NSDictionary<NSString *, id> *info) {
     NSString *appleID = info[@"appleID"] ?: @"(Unknown)";
     NSString *dsid = info[@"dsid"] ?: @"(Unknown)";
@@ -224,40 +312,6 @@ static int cmdAuthLog(void) {
     printf("%s────────────────────────────────────────────────────────────────────────%s\n", colGray(), colReset());
     return 0;
 }
-
-#pragma mark - Signal Handling
-
-static volatile sig_atomic_t gInterrupted = 0;
-
-static void handleSignal(int sig) {
-    (void)sig;
-    gInterrupted = 1;
-    if (gIsTTY) {
-        fprintf(stderr, "\r\033[K\n%s[!] Operation interrupted by user.%s\n", colYellow(), colReset());
-    } else {
-        fprintf(stderr, "\nOperation interrupted by user.\n");
-    }
-    _exit(130);
-}
-
-static void setupSignalHandlers(void) {
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = handleSignal;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
-}
-
-#pragma mark - RunLoop Event Pump (Async XPC Execution)
-
-// Pump main runloop to process XPC reply handlers dispatched to main queue
-typedef void (^CTAsyncWorkBlock)(void (^doneBlock)(int exitCode));
-
-static int runAsyncWithSpinner(NSString *message, NSTimeInterval timeout, CTAsyncWorkBlock work) {
-    __block BOOL isDone = NO;
-    __block int resultExitCode = 0;
 
     const char *spinnerChars[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
     const int spinnerCount = sizeof(spinnerChars) / sizeof(spinnerChars[0]);
