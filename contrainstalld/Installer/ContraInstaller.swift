@@ -96,6 +96,8 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         let stagedAppURL = try locateAppBundle(in: stagedDirURL)
         let bundleID = try extractBundleIdentifier(from: stagedAppURL)
         
+        try resignStagedApp(at: stagedAppURL)
+        
         let existingAppInfo = DatabaseManager.shared.getAppInfo(forBundleID: bundleID)
         let installedAppURL = try installAppBundle(from: stagedAppURL, bundleID: bundleID, existingInfo: existingAppInfo) 
         

@@ -33,6 +33,12 @@ extern char **environ;
 }
 
 + (BOOL)resignAppBundleAtPath:(NSString *)bundlePath withEntitlements:(NSString *)entitlementsPath error:(NSError **)error {
+    const char *ldidPath = ROOT_PATH("/usr/bin/ldid");
+    if (access(ldidPath, X_OK) != 0) {
+        if (error) *error = [self errorWithCode:404 message:@"ldid not found. Please install ldid from Sileo/Zebra."];
+        return NO;
+    }
+
     NSFileManager *fm = [NSFileManager defaultManager];
     
     if (![fm fileExistsAtPath:bundlePath]) {
