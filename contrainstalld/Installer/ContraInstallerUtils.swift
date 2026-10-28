@@ -209,28 +209,25 @@ subdirectories.append(dataURL.appendingPathComponent("tmp"))
         
         return nil
     }
+
     func resignStagedApp(at appURL: URL) throws {
-        var resignError: NSError?
-        
-        let success = AppResigner.resignAppBundle(atPath: appURL.path, withEntitlements: nil, error: &resignError)
-        
-        if !success {
-            print("Failed to resign app at \(appURL.path): \(String(describing: resignError))")
+        do {
+            try AppResigner.resignAppBundle(atPath: appURL.path, withEntitlements: nil)
             
+        } catch {
+            print("Failed to resign app at \(appURL.path): \(error)")
             
-             let userInfo: [String: Any] = [
-                 NSLocalizedDescriptionKey: "Failed to resign the application bundle.",
-                 NSUnderlyingErrorKey: resignError ?? NSError(domain: "AppResigner", code: -1, userInfo: nil)
-             ]
-             throw NSError(domain: "com.kurishu.contrainstalld", 
-                           code: InstallationError.resigningFailed.rawValue, 
-                           userInfo: userInfo)
+            let userInfo: [String: Any] = [
+                NSLocalizedDescriptionKey: "Failed to resign the application bundle.",
+                NSUnderlyingErrorKey: error
+            ]
             
+            throw NSError(domain: "com.kurishu.contrainstalld", 
+                          code: InstallationError.resigningFailed.rawValue, 
+                          userInfo: userInfo)
         }
     }
 
-
-    
     func cleanupDirectory(at url: URL) {
         try? FileManager.default.removeItem(at: url)
     }

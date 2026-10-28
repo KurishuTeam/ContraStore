@@ -8,6 +8,7 @@ final class ContraInstaller: NSObject, ContraInstallerProtocol {
         case payloadNotFound
         case appBundleNotFound
         case bundleIdentifierNotFound
+        case resigningFailed
         
         var errorDescription: String? {
             switch self {
