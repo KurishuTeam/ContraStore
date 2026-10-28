@@ -4,7 +4,33 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+extern char **environ;
+
 @implementation AppResigner
+
++ (NSString *)executablePathForBundle:(NSString *)bundlePath {
+    NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
+    if (bundle.executablePath && [[NSFileManager defaultManager] fileExistsAtPath:bundle.executablePath]) {
+        return bundle.executablePath;
+    }
+    
+    NSString *plistPath = [bundlePath stringByAppendingPathComponent:@"Info.plist"];
+    NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:plistPath];
+    NSString *exeName = info[@"CFBundleExecutable"];
+    if (exeName) {
+        NSString *candidate = [bundlePath stringByAppendingPathComponent:exeName];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:candidate]) {
+            return candidate;
+        }
+    }
+    
+    NSString *baseName = [[bundlePath lastPathComponent] stringByDeletingPathExtension];
+    NSString *candidate = [bundlePath stringByAppendingPathComponent:baseName];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:candidate]) {
+        return candidate;
+    }
+    return nil;
+}
 
 + (BOOL)resignAppBundleAtPath:(NSString *)bundlePath withEntitlements:(NSString *)entitlementsPath error:(NSError **)error {
     NSFileManager *fm = [NSFileManager defaultManager];
@@ -14,7 +40,7 @@
         return NO;
     }
     
-    NSMutableArray<NSString *> *componentsToSign = [NSMutableArray array];
+    NSMutableSet<NSString *> *componentsToSign = [NSMutableSet set];
     NSDirectoryEnumerator *enumerator = [fm enumeratorAtPath:bundlePath];
     NSString *relativePath;
     
@@ -25,7 +51,10 @@
         
         if (isDirectory) {
             if ([relativePath hasSuffix:@".framework"] || [relativePath hasSuffix:@".appex"]) {
-                [componentsToSign addObject:fullPath];
+                NSString *exe = [self executablePathForBundle:fullPath];
+                if (exe) {
+                    [componentsToSign addObject:exe];
+                }
             }
         } else {
             if ([relativePath hasSuffix:@".dylib"]) {
@@ -34,20 +63,26 @@
         }
     }
     
-    [componentsToSign sortUsingComparator:^NSComparisonResult(NSString *obj1, NSString *obj2) {
+    NSArray<NSString *> *sortedComponents = [componentsToSign.allObjects sortedArrayUsingComparator:^NSComparisonResult(NSString *obj1, NSString *obj2) {
         if (obj1.length > obj2.length) return NSOrderedAscending;
         if (obj1.length < obj2.length) return NSOrderedDescending;
         return NSOrderedSame;
     }];
     
-    for (NSString *componentPath in componentsToSign) {
+    for (NSString *componentPath in sortedComponents) {
         BOOL success = [self executeLdidOnPath:componentPath withEntitlements:nil error:error];
         if (!success) {
             return NO;
         }
     }
     
-    return [self executeLdidOnPath:bundlePath withEntitlements:entitlementsPath error:error];
+    NSString *mainExecutable = [self executablePathForBundle:bundlePath];
+    if (!mainExecutable) {
+        if (error) *error = [self errorWithCode:500 message:@"Could not find main executable of app."];
+        return NO;
+    }
+    
+    return [self executeLdidOnPath:mainExecutable withEntitlements:entitlementsPath error:error];
 }
 
 + (NSString *)extractEntitlementsFromPath:(NSString *)targetPath error:(NSError **)error {
@@ -66,13 +101,12 @@
     posix_spawn_file_actions_addclose(&file_actions, pipefd[0]);
     
     const char *target = [targetPath UTF8String];
-    char *argv[] = { strdup(ldidPath), strdup("-e"), strdup(target), NULL };
+    char *argv[] = { (char *)ldidPath, (char *)"-e", (char *)target, NULL };
     
     pid_t pid;
     int spawnError = posix_spawn(&pid, ldidPath, &file_actions, NULL, argv, environ);
     
     posix_spawn_file_actions_destroy(&file_actions);
-    for (int i = 0; i < 3; i++) free(argv[i]);
     
     if (spawnError != 0) {
         close(pipefd[0]);
@@ -95,11 +129,14 @@
     waitpid(pid, &status, 0);
     
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0 && outputData.length > 0) {
-        NSString *tempFileName = [NSString stringWithFormat:@"%@.plist", [[NSUUID UUID] UUIDString]];
-        NSString *tempPath = [NSTemporaryDirectory() stringByAppendingPathComponent:tempFileName];
-        
-        if ([outputData writeToFile:tempPath atomically:YES]) {
-            return tempPath;
+        NSString *outputString = [[NSString alloc] initWithData:outputData encoding:NSUTF8StringEncoding];
+        if (outputString && [outputString containsString:@"<plist"]) {
+            NSString *tempFileName = [NSString stringWithFormat:@"%@.plist", [[NSUUID UUID] UUIDString]];
+            NSString *tempPath = [NSTemporaryDirectory() stringByAppendingPathComponent:tempFileName];
+            
+            if ([outputData writeToFile:tempPath atomically:YES]) {
+                return tempPath;
+            }
         }
     }
     
